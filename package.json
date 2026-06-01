@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "start": "node platform/gripper_eval_server.js"
+    "start": "node platform/gripper_eval_server.js",
+    "import:legacy": "node scripts/import_legacy_platform.js"
   }
 }

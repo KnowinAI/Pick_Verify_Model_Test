@@ -29,3 +29,30 @@ npm start
 ```
 
 `cam1` 是唯一参与评估和 VLM 推理的图片，`cam0` 作为参考图保存、展示并随同组记录一起删除。
+
+## 导入旧平台数据
+
+如果同事在旧项目里又采集并标注了图片，先把同事电脑上的 `D:\fuwu\gripper-eval\platform` 整个目录拷到本机任意位置，然后在本仓库运行：
+
+推荐方式是在网页里导入：打开 `http://127.0.0.1:5034/`，在“图片记录”里的“同事数据同步”填入拷贝来的 `platform` 路径，先点“预览导入”，确认统计无误后点“正式导入并刷新”。路径会记在浏览器本地，下次只需要点按钮。
+
+仍然可以使用命令行：
+
+```powershell
+npm run import:legacy -- "D:\path\to\copied\platform"
+```
+
+也可以直接传旧项目根目录，脚本会自动寻找里面的 `platform`：
+
+```powershell
+npm run import:legacy -- "D:\path\to\copied\gripper-eval"
+```
+
+导入前可先 dry-run 查看会复制和合并多少内容：
+
+```powershell
+npm run import:legacy -- "D:\path\to\copied\platform" --dry-run
+```
+
+脚本会合并 `gripper_eval_data.json`，复制缺失的 `local_images` 图片，并在写入前备份当前数据。
+导入时会查重：同名图片、内容完全相同的图片，以及同一时间戳/相机的记录会跳过，避免重复显示。

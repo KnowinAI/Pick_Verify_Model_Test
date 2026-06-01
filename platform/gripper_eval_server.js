@@ -2,6 +2,7 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const crypto = require('crypto');
+const { importLegacyPlatform } = require('../scripts/import_legacy_lib');
 
 const HOST = '0.0.0.0';
 const PORT = Number(process.env.PORT || 5034);
@@ -75,6 +76,7 @@ function defaultData() {
   return {
     version: 1,
     records: {},
+    custom_reason_options: {},
   };
 }
 
@@ -91,6 +93,30 @@ function readData() {
 
 function writeData(data) {
   fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2), 'utf8');
+}
+
+function normalizeCustomReasonOptions(value = {}) {
+  const result = {};
+  if (!value || typeof value !== 'object') return result;
+  for (const [branchKey, rawEntries] of Object.entries(value)) {
+    const branch = String(branchKey || '').trim();
+    if (!branch || !Array.isArray(rawEntries)) continue;
+    const entries = [];
+    for (const rawEntry of rawEntries) {
+      const reason = String(
+        typeof rawEntry === 'string' ? rawEntry : rawEntry && rawEntry.reason,
+      ).trim();
+      if (!reason) continue;
+      const humanResult = typeof rawEntry === 'object'
+        ? String(rawEntry.human_result || '').trim()
+        : '';
+      if (!entries.some((entry) => entry.reason === reason && entry.human_result === humanResult)) {
+        entries.push({ reason, human_result: humanResult });
+      }
+    }
+    if (entries.length) result[branch] = entries;
+  }
+  return result;
 }
 
 function ensureLocalImageDir() {
@@ -899,6 +925,54 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  if (req.method === 'GET' && url.pathname === '/api/custom-reasons') {
+    const data = readData();
+    sendJson(res, 200, { ok: true, custom_reasons: normalizeCustomReasonOptions(data.custom_reason_options) });
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/custom-reasons') {
+    const body = JSON.parse(await readBody(req) || '{}');
+    const branch = String(body.branch || '').trim().slice(0, 40);
+    const reason = String(body.reason || '').trim().slice(0, 80);
+    const humanResult = String(body.human_result || '').trim().slice(0, 40);
+    if (!branch || !reason) {
+      sendJson(res, 400, { ok: false, message: '请填写归因分支和具体原因' });
+      return;
+    }
+    const data = readData();
+    const customReasons = normalizeCustomReasonOptions(data.custom_reason_options);
+    if (!customReasons[branch]) customReasons[branch] = [];
+    if (!customReasons[branch].some((entry) => entry.reason === reason && entry.human_result === humanResult)) {
+      customReasons[branch].push({ reason, human_result: humanResult });
+    }
+    data.custom_reason_options = customReasons;
+    writeData(data);
+    sendJson(res, 200, { ok: true, custom_reasons: customReasons, reason: { branch, reason, human_result: humanResult } });
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/import-legacy') {
+    const bodyText = await readBody(req);
+    const body = bodyText ? JSON.parse(bodyText) : {};
+    const sourcePath = String(body.sourcePath || process.env.LEGACY_IMPORT_DIR || '').trim();
+    if (!sourcePath) {
+      sendJson(res, 400, { ok: false, message: '请填写同事拷贝过来的 platform 路径' });
+      return;
+    }
+    try {
+      const result = importLegacyPlatform(sourcePath, {
+        dryRun: Boolean(body.dryRun),
+        targetPlatformDir: __dirname,
+      });
+      if (!body.dryRun) syncLocalImagesToData(readData());
+      sendJson(res, 200, { ok: true, ...result });
+    } catch (error) {
+      sendJson(res, 400, { ok: false, message: error.message || String(error) });
+    }
+    return;
+  }
+
   if (
     req.method === 'DELETE'
     && (url.pathname.startsWith('/api/records/') || url.pathname.startsWith('/api/annotations/'))
@@ -1066,13 +1140,16 @@ async function handleApi(req, res, url) {
   if (req.method === 'POST' && url.pathname.startsWith('/api/annotations/')) {
     const reviewId = decodeURIComponent(url.pathname.split('/').pop());
     const body = JSON.parse(await readBody(req) || '{}');
+    const existingAnnotation = (readData().records[reviewId] || {}).annotation || {};
     const annotation = {
+      ...existingAnnotation,
       human_result: body.human_result || '',
       model_result: body.model_result || '',
       sample_validity: body.sample_validity || 'valid',
       attribution_branch: body.attribution_branch || '',
       attribution_reason: body.attribution_reason || '',
       note: body.note || '',
+      object_tag: String(body.object_tag || '').trim().slice(0, 32),
       updated_at: new Date().toISOString(),
     };
     const local = upsertLocalRecord(reviewId, { annotation });

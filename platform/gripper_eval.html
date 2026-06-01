@@ -94,6 +94,43 @@
       align-items: center;
       flex-wrap: wrap;
     }
+    .import-panel {
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #f8fbff;
+    }
+    .import-row {
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) auto auto;
+      gap: 8px;
+      align-items: center;
+    }
+    .import-row input {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 12px;
+      font: inherit;
+      color: var(--text);
+      background: #fff;
+    }
+    .import-result {
+      display: none;
+      max-height: 220px;
+      overflow: auto;
+      margin: 0;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      color: var(--text);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
     .realtime-panel {
       display: grid;
       gap: 10px;
@@ -146,8 +183,8 @@
     }
     .record-list {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
     }
     .record-item {
       border: 1px solid var(--line);
@@ -212,7 +249,7 @@
       font-size: 13px;
     }
     .record-item.rich-card {
-      padding: 12px;
+      padding: 9px;
       background: #eef7ea;
       border-color: #9ab58e;
       border-top-width: 1px;
@@ -225,9 +262,21 @@
     .record-item.rich-card.active {
       box-shadow: 0 0 0 2px rgba(47, 108, 246, .2) inset;
     }
+    .rich-card .record-detail-grid > div {
+      min-width: 0;
+    }
     .record-image-wrap {
       position: relative;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
+    }
+    .record-image-pair {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .record-image-pair .record-image-wrap {
+      margin-bottom: 0;
     }
     .record-camera-chip {
       position: absolute;
@@ -237,8 +286,8 @@
       border-radius: 999px;
       background: rgba(15, 23, 42, .72);
       color: #fff;
-      padding: 3px 8px;
-      font-size: 13px;
+      padding: 2px 7px;
+      font-size: 12px;
       font-weight: 750;
     }
     .record-thumb {
@@ -248,6 +297,7 @@
       display: block;
       background: #eef2f8;
       border-bottom: 1px solid var(--line);
+      border-radius: 8px;
     }
     .record-thumb:hover {
       filter: brightness(.96);
@@ -260,7 +310,11 @@
     }
     .record-title {
       font-weight: 650;
-      word-break: break-all;
+      font-size: 13px;
+      line-height: 1.3;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .record-meta-line {
       color: var(--muted);
@@ -271,26 +325,37 @@
     .record-detail-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 14px 18px;
-      margin-top: 14px;
+      gap: 9px 10px;
+      margin-top: 10px;
     }
     .record-field-label {
       color: #78826d;
       font-weight: 750;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
       text-transform: lowercase;
+      font-size: 12px;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .record-field-value {
-      font-size: 18px;
-      font-weight: 800;
-      line-height: 1.25;
-      word-break: break-word;
+      font-size: 14px;
+      font-weight: 750;
+      line-height: 1.22;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
     }
     .record-field-sub {
       color: #596553;
-      margin-top: 4px;
-      line-height: 1.5;
-      word-break: break-word;
+      margin-top: 2px;
+      line-height: 1.25;
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .record-actions {
       display: flex;
@@ -309,10 +374,15 @@
     }
     .badge {
       border-radius: 999px;
-      padding: 3px 8px;
+      padding: 2px 7px;
       background: #eef2f8;
       color: var(--muted);
-      font-size: 12px;
+      font-size: 11px;
+      line-height: 1.35;
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .badge.ok { background: #e7f6ee; color: var(--success); }
     .badge.warn { background: #fff4db; color: var(--warning); }
@@ -321,6 +391,25 @@
     .badge.vlm-ok { background: #e7f6ee; color: var(--text); }
     .badge.vlm-failed { background: #fdebea; color: var(--text); }
     .badge.vlm-pending { background: #eef2f8; color: var(--text); }
+    .tag-badge {
+      display: inline-flex;
+      align-items: center;
+      max-width: 100%;
+      border-radius: 999px;
+      padding: 2px 7px;
+      background: #e8f1ff;
+      color: #244a8f;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.35;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .record-tag-row {
+      min-width: 0;
+      margin-top: 4px;
+    }
     .vlm-status-panel {
       border: 1px solid var(--line);
       border-radius: 12px;
@@ -462,7 +551,7 @@
       font-size: 12px;
       font-weight: 500;
     }
-    select, textarea {
+    select, textarea, input[type="text"] {
       width: 100%;
       border: 1px solid var(--line);
       border-radius: 10px;
@@ -472,7 +561,8 @@
       font-weight: 650;
     }
     select:disabled,
-    textarea:disabled {
+    textarea:disabled,
+    input[type="text"]:disabled {
       cursor: not-allowed;
       background: #f3f6fb;
       color: var(--muted);
@@ -547,6 +637,17 @@
       cursor: not-allowed;
       background: #f3f6fb;
       color: var(--muted);
+    }
+    .reason-add-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      margin-top: 8px;
+      align-items: center;
+    }
+    .reason-add-row button {
+      padding: 9px 12px;
+      white-space: nowrap;
     }
     .readonly-field {
       width: 100%;
@@ -741,6 +842,9 @@
       .dashboard-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
+      .record-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 900px) {
       .record-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     @media (max-width: 720px) {
@@ -749,7 +853,9 @@
       .form-grid {
         grid-template-columns: 1fr;
       }
+      .import-row { grid-template-columns: 1fr; }
       .record-list { grid-template-columns: 1fr; }
+      .realtime-camera-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -777,28 +883,27 @@
           <input id="localUploadInput" type="file" accept="image/*" style="max-width:220px;">
           <button id="uploadToListButton" type="button" class="secondary">上传图片到图片记录</button>
           <button id="refreshRealtimeButton" type="button" class="secondary">刷新实时画面</button>
-          <button id="openRealtimeButton" type="button" class="secondary">新窗口打开实时画面</button>
         </div>
       </div>
       <div class="realtime-frame">
         <div class="realtime-frame-header">
           <div>
-            <h2>双目相机实时预览</h2>
-            <p class="muted">左右画面来自相机服务，共享内存 `/cam_frames`。如果画面不动，先检查相机服务。</p>
+            <h2>双路实时预览</h2>
+            <p class="muted">实时区展示 cam0/cam1 双路画面；图片记录列表仍只展示 cam1 评估图。</p>
           </div>
           <span id="realtimeRefreshText" class="badge">等待刷新</span>
         </div>
         <div class="realtime-camera-grid">
           <div class="realtime-camera-card">
             <div class="realtime-camera-title">
-              <span>Left Camera 0</span>
+              <span>cam0 参考画面</span>
               <span id="realtimeCam0Time">-</span>
             </div>
             <img id="realtimeImageCam0" src="/api/realtime-proxy/frame?camera=0&t=0" alt="实时画面 cam0">
           </div>
           <div class="realtime-camera-card">
             <div class="realtime-camera-title">
-              <span>Right Camera 1</span>
+              <span>cam1 评估画面</span>
               <span id="realtimeCam1Time">-</span>
             </div>
             <img id="realtimeImageCam1" src="/api/realtime-proxy/frame?camera=1&t=0" alt="实时画面 cam1">
@@ -852,6 +957,9 @@
                       <option value="open_not_grasped">张开，未夹住</option>
                       <option value="unknown">无法判断</option>
                     </select>
+                    <span class="field-title">物品标签 <span class="field-hint">用于筛选归类</span></span>
+                    <input id="objectTag" type="text" list="objectTagSuggestions" maxlength="32" placeholder="例如：钥匙扣、透明件、软物体">
+                    <datalist id="objectTagSuggestions"></datalist>
                   </label>
 
                   <div class="status-card model">
@@ -908,6 +1016,11 @@
                       <span class="muted">请先选择归因分支</span>
                     </div>
                   </div>
+                  <div class="reason-add-row">
+                    <input id="customReasonInput" type="text" maxlength="80" placeholder="新增当前分支下的具体原因">
+                    <button id="addReasonButton" type="button" class="secondary">增加原因</button>
+                  </div>
+                  <div id="customReasonMessage" class="reason-help"></div>
                   <div id="attributionReasonHelp" class="reason-help">选择具体原因后会显示判定口径。</div>
                 </div>
 
@@ -995,6 +1108,12 @@
           </select>
         </label>
         <label class="inline-check">
+          标签筛选
+          <select id="tagFilter" style="width:auto;min-width:150px;padding:7px 10px;">
+            <option value="">全部标签</option>
+          </select>
+        </label>
+        <label class="inline-check">
           日期分页
           <select id="dateFilter" style="width:auto;min-width:150px;padding:7px 10px;">
             <option value="">全部日期</option>
@@ -1008,6 +1127,19 @@
           打开页面自动调用 VLM
         </label>
         <span id="queueMessage" class="muted"></span>
+      </div>
+      <div class="import-panel">
+        <div>
+          <h3>同事数据同步</h3>
+          <p class="muted">同事把旧项目的 platform 文件夹拷到本机后，在这里预览或正式导入，页面会自动查重并保留你本地已删除的记录。</p>
+        </div>
+        <div class="import-row">
+          <input id="legacyImportPath" type="text" placeholder="例如：D:\拷贝过来的\platform">
+          <button id="legacyImportPreviewButton" type="button" class="secondary">预览导入</button>
+          <button id="legacyImportButton" type="button">正式导入并刷新</button>
+        </div>
+        <div id="legacyImportMessage" class="message"></div>
+        <pre id="legacyImportResult" class="import-result"></pre>
       </div>
       <div id="autoVlmMessage" class="message"></div>
       <div id="listMessage" class="message"></div>
@@ -1047,6 +1179,11 @@
         '闭合夹住，一侧被遮挡',
       ],
       '图像质量': ['模糊', '过曝/欠曝', '暗光', '运动拖影', '背景干扰'],
+    };
+    const visualReasonGroups = {
+      open_not_grasped: ['张开未夹住，物品在夹爪中间', '张开未夹住，夹爪中间无遮挡'],
+      closed_not_grasped: ['闭合未夹住，物品与夹爪视觉重叠', '闭合未夹住，物品与夹爪无视觉重叠', '闭合未夹住，接触平面或桌面'],
+      grasped: ['闭合夹住，物体露出很少', '闭合夹住，一侧被遮挡'],
     };
     const reasonLabels = {
       '张开未夹住，物品在夹爪中间': '张开未夹住，物品在夹爪中间',
@@ -1113,12 +1250,15 @@
     };
     const RECORD_FETCH_LIMIT = 'all';
     const RECORD_PAGE_SIZE = 120;
+    const LEGACY_IMPORT_PATH_KEY = 'pickVerifyLegacyImportPath';
 
     let records = [];
     let selectedId = '';
     let listMode = 'unlabeled';
     let resultFilter = '';
+    let tagFilter = '';
     let selectedDate = '';
+    let customReasonOptions = {};
     let autoVlmTimer = null;
     let activeDetailRecordId = '';
     let formDirty = false;
@@ -1175,12 +1315,35 @@
       return Array.from(new Set(records.map(getRecordDateKey).filter(Boolean))).sort((a, b) => b.localeCompare(a));
     }
 
+    function getObjectTag(record) {
+      return safe(record && record.annotation && record.annotation.object_tag, '').trim();
+    }
+
+    function getAvailableObjectTags() {
+      return Array.from(new Set(records.filter(shouldEvaluateRecord).map(getObjectTag).filter(Boolean)))
+        .sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
+    }
+
+    function renderTagFilter() {
+      const tags = getAvailableObjectTags();
+      if (tagFilter && !tags.includes(tagFilter)) tagFilter = '';
+      const options = tags
+        .map((tag) => `<option value="${escapeHtml(tag)}">${escapeHtml(tag)}</option>`)
+        .join('');
+      $('tagFilter').innerHTML = '<option value="">全部标签</option>' + options;
+      $('tagFilter').value = tagFilter;
+      $('objectTagSuggestions').innerHTML = tags
+        .map((tag) => `<option value="${escapeHtml(tag)}"></option>`)
+        .join('');
+    }
+
     function updateListMessage() {
       const dateText = selectedDate ? `，日期 ${selectedDate}` : '';
+      const tagText = tagFilter ? `，标签 ${tagFilter}` : '';
       const visibleRecords = getVisibleRecords();
       const visibleGroups = groupVisibleRecords(visibleRecords);
       const totalPages = Math.max(1, Math.ceil(visibleGroups.length / RECORD_PAGE_SIZE));
-      $('listMessage').textContent = `已读取 ${records.length} 条记录${dateText}，当前匹配 ${visibleRecords.length} 条，共 ${visibleGroups.length} 组，第 ${Math.min(currentListPage, totalPages)}/${totalPages} 页`;
+      $('listMessage').textContent = `已读取 ${records.length} 条记录${dateText}${tagText}，当前匹配 ${visibleRecords.length} 条，共 ${visibleGroups.length} 组，第 ${Math.min(currentListPage, totalPages)}/${totalPages} 页`;
     }
 
     function resetListPage() {
@@ -1269,6 +1432,12 @@
       return '';
     }
 
+    function openCloseStatus(statusCode) {
+      if (statusCode === 'Closed_Grasped' || statusCode === 'Closed_Empty') return 'closed';
+      if (statusCode === 'Opened_Empty') return 'open';
+      return '';
+    }
+
     function getImageUrl(record) {
       if (!record || !record.image_url) return '';
       if (record.image_url.startsWith('/')) return record.image_url;
@@ -1316,9 +1485,15 @@
         return humanStatus === 'Closed_Grasped' ? '正确识别夹住' : '正确识别未夹住';
       }
       const humanBinary = binaryStatus(humanStatus);
+      const humanOpenClose = openCloseStatus(humanStatus);
+      const modelOpenClose = openCloseStatus(modelStatus);
       if (humanBinary === 'grasped' && model === 'grasped') return '正确识别夹住';
       if (humanBinary === 'grasped' && model === 'not_grasped') return '漏判';
       if (humanBinary === 'not_grasped' && model === 'grasped') return '误判';
+      if (humanBinary === 'not_grasped' && model === 'not_grasped' && humanOpenClose && modelOpenClose && humanOpenClose !== modelOpenClose) {
+        if (modelOpenClose === 'closed' && humanOpenClose === 'open') return '误判';
+        if (modelOpenClose === 'open' && humanOpenClose === 'closed') return '漏判';
+      }
       if (humanBinary === 'not_grasped' && model === 'not_grasped') return '正确识别未夹住';
       return '待人工标注';
     }
@@ -1399,6 +1574,9 @@
       } else if (resultFilter) {
         baseRecords = baseRecords.filter((record) => (record.eval_classification || '待人工标注') === resultFilter);
       }
+      if (tagFilter) {
+        baseRecords = baseRecords.filter((record) => getObjectTag(record) === tagFilter);
+      }
       if (selectedDate) {
         baseRecords = baseRecords.filter((record) => getRecordDateKey(record) === selectedDate);
       }
@@ -1457,7 +1635,7 @@
             .filter((item) => item.source_metadata && item.source_metadata.capture_group_id === metadata.capture_group_id)
             .sort((a, b) => Number(a.source_metadata.camera_id) - Number(b.source_metadata.camera_id));
           groupRecords.forEach((item) => seen.add(item.id));
-          groups.push({ type: 'group', id: metadata.capture_group_id, records: groupRecords.filter(shouldEvaluateRecord) });
+          groups.push({ type: 'group', id: metadata.capture_group_id, records: groupRecords });
         } else {
           seen.add(record.id);
           groups.push({ type: 'single', id: record.id, records: [record] });
@@ -1506,7 +1684,31 @@
       return paired ? `cam${safe(cameraId, '0')} 参考图` : '无参考图';
     }
 
-    function renderRecordCard(record) {
+    function getGroupImageRecords(record, groupRecords = []) {
+      const byId = new Map();
+      for (const item of groupRecords) {
+        if (item && item.id) byId.set(item.id, item);
+      }
+      const paired = findPairedRecord(record);
+      if (record && record.id) byId.set(record.id, record);
+      if (paired && paired.id) byId.set(paired.id, paired);
+      return Array.from(byId.values())
+        .filter(shouldEvaluateRecord)
+        .sort((a, b) => Number((a.source_metadata || {}).camera_id) - Number((b.source_metadata || {}).camera_id));
+    }
+
+    function renderRecordImageHtml(imageRecord) {
+      const cameraId = imageRecord && imageRecord.source_metadata && imageRecord.source_metadata.camera_id;
+      const role = shouldEvaluateRecord(imageRecord) ? '评估' : '参考';
+      return `
+        <div class="record-image-wrap">
+          <span class="record-camera-chip">cam${escapeHtml(cameraId ?? '-')} ${role}</span>
+          <img class="record-thumb" data-preview-record-id="${escapeHtml(imageRecord.id)}" src="${getImageUrl(imageRecord)}" alt="${escapeHtml(getRecordDisplayName(imageRecord))}">
+        </div>
+      `;
+    }
+
+    function renderRecordCard(record, groupRecords = []) {
         const item = document.createElement('div');
         const vlmState = getVlmState(record);
         const reattributionBadge = needsReattribution(record) ? '<span class="badge warn">待重新归因</span>' : '';
@@ -1515,44 +1717,40 @@
         item.onclick = () => selectRecord(record.id);
         const category = record.eval_classification || '待人工标注';
         const annotation = record.annotation || {};
-        const cameraId = record.source_metadata && record.source_metadata.camera_id;
+        const imageRecords = getGroupImageRecords(record, groupRecords);
+        const objectTag = getObjectTag(record);
+        const objectTagHtml = objectTag
+          ? `<div class="record-tag-row"><span class="tag-badge" title="${escapeHtml(objectTag)}">${escapeHtml(objectTag)}</span></div>`
+          : '';
         const batchCheckHtml = batchMode
           ? `<input class="batch-check" type="checkbox" data-record-id="${record.id}" ${isBatchSelected ? 'checked' : ''}>`
           : '';
         item.innerHTML = `
           ${batchCheckHtml}
-          <div class="record-image-wrap">
-            <span class="record-camera-chip">cam${escapeHtml(cameraId ?? 1)}</span>
-            <img class="record-thumb" src="${getImageUrl(record)}" alt="${escapeHtml(getRecordDisplayName(record))}">
+          <div class="record-image-pair">
+            ${imageRecords.map(renderRecordImageHtml).join('')}
           </div>
           <div class="record-body">
-            <div class="record-field-label">record</div>
-            <div class="record-title">${escapeHtml(getRecordBaseName(record))}</div>
-            <div class="record-meta-line">#${escapeHtml(getRecordIndex(record))} · ${escapeHtml(getRecordClock(record))} · ${escapeHtml(getReferenceHint(record))}</div>
+            <div class="record-title" title="${escapeHtml(getRecordBaseName(record))}">${escapeHtml(getRecordBaseName(record))}</div>
+            ${objectTagHtml}
             <div class="record-detail-grid">
               <div>
                 <div class="record-field-label">human source</div>
                 <div class="record-field-value">${escapeHtml(labelMap[annotation.human_result] || '待人工标注')}</div>
-                <div class="record-field-sub">人工标注</div>
               </div>
               <div>
                 <div class="record-field-label">vlm response</div>
                 <div class="record-field-value">${escapeHtml(getModelResultText(record))}</div>
-                <div class="record-field-sub">${escapeHtml(getModelSourceText(record))}</div>
               </div>
               <div>
                 <div class="record-field-label">result</div>
                 <span class="badge ${badgeClass(category)}">${escapeHtml(category)}</span>
                 ${reattributionBadge}
               </div>
-              <div>
-                <div class="record-field-label">reason</div>
-                <div class="record-field-sub">${escapeHtml(getReasonText(record))}</div>
-              </div>
-            </div>
-            <div class="record-actions">
-              <button class="secondary record-review-button" type="button">确认/修正</button>
-              <button class="danger record-remove-button" type="button">移除标注</button>
+      <div>
+        <div class="record-field-label">reason</div>
+        <div class="record-field-sub" title="${escapeHtml(getReasonText(record))}">${escapeHtml(getReasonText(record))}</div>
+      </div>
             </div>
           </div>
         `;
@@ -1563,31 +1761,20 @@
             toggleBatchSelection(record.id, checkbox.checked);
           };
         }
-        item.querySelector('.record-thumb').onclick = (event) => {
-          event.stopPropagation();
-          openImagePreview(record);
-        };
-        item.querySelector('.record-review-button').onclick = (event) => {
-          event.stopPropagation();
-          selectRecord(record.id);
-          $('detailPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
-        };
-        item.querySelector('.record-remove-button').onclick = (event) => {
-          event.stopPropagation();
-          deleteRecordById(record.id).catch((error) => {
-            $('listMessage').textContent = error.message || String(error);
-            $('listMessage').className = 'message error';
-          });
-        };
+        item.querySelectorAll('.record-thumb').forEach((image) => {
+          image.onclick = (event) => {
+            event.stopPropagation();
+            const targetRecord = records.find((entry) => entry.id === image.dataset.previewRecordId) || record;
+            openImagePreview(targetRecord);
+          };
+        });
         return item;
     }
 
     function renderRecordGroup(group) {
-      const item = document.createElement('div');
       const active = group.records.some((record) => record.id === selectedId);
-      const isSingle = group.type === 'single' || group.records.length === 1;
       const evaluationRecord = group.records.find(shouldEvaluateRecord) || group.records[0];
-      const card = renderRecordCard(evaluationRecord);
+      const card = renderRecordCard(evaluationRecord, group.records);
       if (active) card.classList.add('active');
       return card;
     }
@@ -1654,11 +1841,94 @@
       $('listMessage').className = 'message success';
     }
 
+    function normalizeCustomReasonOptions(value = {}) {
+      const result = {};
+      if (!value || typeof value !== 'object') return result;
+      for (const [branch, rawEntries] of Object.entries(value)) {
+        if (!Array.isArray(rawEntries)) continue;
+        const entries = rawEntries
+          .map((entry) => ({
+            reason: String(typeof entry === 'string' ? entry : entry && entry.reason || '').trim(),
+            human_result: String(typeof entry === 'object' && entry ? entry.human_result || '' : '').trim(),
+          }))
+          .filter((entry) => entry.reason);
+        if (entries.length) result[branch] = entries;
+      }
+      return result;
+    }
+
+    function getReasonHumanScope(branch) {
+      return branch === '视觉感知' ? $('humanResult').value : '';
+    }
+
+    function getReasonOptionsForContext(branch) {
+      const humanValue = $('humanResult').value;
+      let baseOptions = reasonOptions[branch] || [];
+      if (branch === '视觉感知' && visualReasonGroups[humanValue]) {
+        baseOptions = baseOptions.filter((reason) => visualReasonGroups[humanValue].includes(reason));
+      }
+      const customOptions = (customReasonOptions[branch] || [])
+        .filter((entry) => !entry.human_result || !humanValue || entry.human_result === humanValue)
+        .map((entry) => entry.reason);
+      return Array.from(new Set([...baseOptions, ...customOptions]));
+    }
+
+    async function loadCustomReasons() {
+      const response = await fetch('/api/custom-reasons');
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || '读取自定义原因失败');
+      customReasonOptions = normalizeCustomReasonOptions(data.custom_reasons || {});
+    }
+
+    async function addCustomReason() {
+      const branch = $('attributionBranch').value;
+      const reason = $('customReasonInput').value.trim();
+      const humanResult = getReasonHumanScope(branch);
+      if (!branch) {
+        $('customReasonMessage').textContent = '请先选择归因分支';
+        return;
+      }
+      if (branch === '视觉感知' && !humanResult) {
+        $('customReasonMessage').textContent = '视觉感知原因需要先选择实测结果';
+        return;
+      }
+      if (!reason) {
+        $('customReasonMessage').textContent = '请填写要增加的具体原因';
+        return;
+      }
+      if (getReasonOptionsForContext(branch).includes(reason)) {
+        $('customReasonMessage').textContent = '该原因已存在';
+        return;
+      }
+      $('addReasonButton').disabled = true;
+      $('customReasonMessage').textContent = '正在增加原因...';
+      try {
+        const response = await fetch('/api/custom-reasons', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ branch, reason, human_result: humanResult }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || '增加原因失败');
+        customReasonOptions = normalizeCustomReasonOptions(data.custom_reasons || {});
+        const selectedReasons = Array.from(new Set([...getSelectedReasons(), reason]));
+        $('customReasonInput').value = '';
+        renderReasons(branch, selectedReasons.join('、'));
+        $('attributionReasonList').classList.add('open');
+        $('customReasonMessage').textContent = '已增加原因';
+        formDirty = true;
+      } catch (error) {
+        $('customReasonMessage').textContent = error.message || String(error);
+      } finally {
+        updateAttributionControls(classify($('humanResult').value, $('modelResult').value || getSelectedModelResult(), $('sampleValidity').value));
+      }
+    }
+
     function renderReasons(branch, selected) {
       const list = $('attributionReasonList');
-      const options = reasonOptions[branch] || [];
+      const options = getReasonOptionsForContext(branch);
       const selectedReasons = normalizeReasons(selected);
-      list.innerHTML = options.length ? '' : '<span class="muted">请先选择归因分支</span>';
+      list.innerHTML = options.length ? '' : `<span class="muted">${branch ? '当前层级暂无原因，可新增原因' : '请先选择归因分支'}</span>`;
       for (const reason of options) {
         const label = document.createElement('label');
         const checkbox = document.createElement('input');
@@ -1717,24 +1987,19 @@
       const keepUnsavedForm = formDirty && activeDetailRecordId === selectedId;
       activeDetailRecordId = selectedId;
       $('previewImage').src = getImageUrl(record);
-      const pairedRecord = findPairedRecord(record);
-      $('pairedPreview').classList.toggle('show', Boolean(pairedRecord));
-      if (pairedRecord) {
-        const cameraId = pairedRecord.source_metadata && pairedRecord.source_metadata.camera_id;
-        const role = shouldEvaluateRecord(pairedRecord) ? '评估图' : '参考图，不统计';
-        $('pairedPreviewTitle').textContent = `同组相机 cam${safe(cameraId, '未知')}（${role}）`;
-        $('pairedPreviewImage').src = getImageUrl(pairedRecord);
-      } else {
-        $('pairedPreviewImage').removeAttribute('src');
-      }
+      $('pairedPreview').classList.remove('show');
+      $('pairedPreviewImage').removeAttribute('src');
       $('modelResult').value = modelResultFromVlm(record) || record.model_result || localModelFromSource(record) || annotation.model_result || 'no_result';
       $('modelResultText').textContent = getModelResultText(record);
       $('runVlmButton').disabled = !shouldEvaluateRecord(record) && !findPairedRecord(record);
       if (!keepUnsavedForm) {
         $('humanResult').value = annotation.human_result === 'not_grasped' ? '' : (annotation.human_result || '');
         $('sampleValidity').value = annotation.sample_validity || 'valid';
+        $('objectTag').value = annotation.object_tag || '';
         $('attributionBranch').value = annotation.attribution_branch || '';
         renderReasons($('attributionBranch').value, annotation.attribution_reason || '');
+        $('customReasonInput').value = '';
+        $('customReasonMessage').textContent = '';
         $('note').value = annotation.note || '';
       }
       renderClassification();
@@ -1775,10 +2040,13 @@
 
     function updateAttributionControls(category) {
       const enabled = needsAttribution(category);
+      const canEditReasons = enabled && Boolean($('attributionBranch').value);
       $('attributionPrompt').classList.toggle('show', enabled);
       $('attributionBranch').disabled = !enabled;
       $('note').disabled = !enabled;
       $('attributionReasonToggle').disabled = !enabled;
+      $('customReasonInput').disabled = !canEditReasons;
+      $('addReasonButton').disabled = !canEditReasons;
       $('attributionBranchField').classList.toggle('disabled', !enabled);
       $('attributionReasonField').classList.toggle('disabled', !enabled);
       $('attributionReasonList').classList.toggle('disabled', !enabled);
@@ -1831,7 +2099,6 @@
         ['无法判断', categories['无法判断'] || 0],
         ['VLM 调用失败', categories['VLM 调用失败'] || 0],
         ['无效样本', categories['无效样本'] || 0],
-        ['参考图像', summary.referenceTotal || 0],
       ];
       $('sideRows').innerHTML = sideRows
         .map(([name, count]) => `<tr><td>${name}</td><td><strong>${count}</strong></td></tr>`)
@@ -1845,13 +2112,14 @@
       if (!response.ok) throw new Error(data.message || '读取失败');
       records = sortRecordsNewest(data.items || []);
       resetListPage();
+      renderTagFilter();
       const existingIds = new Set(records.map((item) => item.id));
       Array.from(batchSelectedIds).forEach((id) => {
         if (!existingIds.has(id)) batchSelectedIds.delete(id);
       });
       const visibleRecords = getVisibleRecords();
       if (!keepSelection || !records.some((item) => item.id === selectedId) || !visibleRecords.some((item) => item.id === selectedId)) {
-        const hasActiveListFilter = Boolean(selectedDate || resultFilter);
+        const hasActiveListFilter = Boolean(selectedDate || resultFilter || tagFilter);
         selectedId = (visibleRecords[0] ? visibleRecords[0].id : '') || (hasActiveListFilter ? '' : getNextUnlabeledId('') || (records[0] ? records[0].id : ''));
         formDirty = false;
       }
@@ -1924,6 +2192,62 @@
       }
     }
 
+    function formatImportSummary(result) {
+      const images = result.images || {};
+      const recordStats = result.records || {};
+      const duplicateReasons = recordStats.duplicateReasons || {};
+      const lines = [
+        result.dryRun ? '预览结果：不会修改当前数据' : '导入完成：已写入当前数据并刷新列表',
+        `来源：${result.sourcePlatformDir || '-'}`,
+        `图片：新增 ${images.copied || 0}，同名跳过 ${images.skippedByName || 0}，同内容跳过 ${images.skippedByHash || 0}，来源缺失 ${images.missingSource || 0}`,
+        `记录：新增 ${recordStats.added || 0}，更新 ${recordStats.updated || 0}，保留本地 ${recordStats.kept || 0}`,
+        `查重跳过 ${recordStats.skippedDuplicate || 0}（同名 ${duplicateReasons.filename || 0}，同内容 ${duplicateReasons.hash || 0}，同时间相机 ${duplicateReasons.timestampCamera || 0}）`,
+        `已删除保护：跳过 ${recordStats.skippedDeleted || 0}`,
+      ];
+      if (result.backupPath) lines.push(`备份：${result.backupPath}`);
+      return lines.join('\n');
+    }
+
+    async function runLegacyImport(dryRun) {
+      const pathValue = $('legacyImportPath').value.trim();
+      if (!pathValue) {
+        $('legacyImportMessage').textContent = '请先填写同事拷贝过来的 platform 路径';
+        $('legacyImportMessage').className = 'message error';
+        return;
+      }
+
+      localStorage.setItem(LEGACY_IMPORT_PATH_KEY, pathValue);
+      $('legacyImportPreviewButton').disabled = true;
+      $('legacyImportButton').disabled = true;
+      $('legacyImportMessage').textContent = dryRun ? '正在预览导入内容...' : '正在正式导入并刷新...';
+      $('legacyImportMessage').className = 'message';
+      $('legacyImportResult').style.display = 'none';
+      $('legacyImportResult').textContent = '';
+
+      try {
+        const response = await fetch('/api/import-legacy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sourcePath: pathValue, dryRun }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || '导入失败');
+        $('legacyImportMessage').textContent = dryRun ? '预览完成，确认无误后可正式导入' : '导入完成，列表已刷新';
+        $('legacyImportMessage').className = 'message success';
+        $('legacyImportResult').textContent = formatImportSummary(data);
+        $('legacyImportResult').style.display = 'block';
+        if (!dryRun) {
+          await loadRecords(false);
+        }
+      } catch (error) {
+        $('legacyImportMessage').textContent = error.message || String(error);
+        $('legacyImportMessage').className = 'message error';
+      } finally {
+        $('legacyImportPreviewButton').disabled = false;
+        $('legacyImportButton').disabled = false;
+      }
+    }
+
     async function runSelectedVlm() {
       const current = getSelectedRecord();
       if (!current) return;
@@ -1980,6 +2304,7 @@
         human_result: $('humanResult').value,
         model_result: $('modelResult').value || getSelectedModelResult(),
         sample_validity: $('sampleValidity').value,
+        object_tag: $('objectTag').value.trim(),
         attribution_branch: shouldSaveAttribution ? $('attributionBranch').value : '',
         attribution_reason: shouldSaveAttribution ? selectedReasons.join('、') : '',
         note: shouldSaveAttribution ? $('note').value : '',
@@ -2071,6 +2396,16 @@
         $('autoVlmMessage').className = 'message error';
       });
     };
+    $('legacyImportPath').value = localStorage.getItem(LEGACY_IMPORT_PATH_KEY) || '';
+    $('legacyImportPath').onchange = () => {
+      localStorage.setItem(LEGACY_IMPORT_PATH_KEY, $('legacyImportPath').value.trim());
+    };
+    $('legacyImportPreviewButton').onclick = () => {
+      runLegacyImport(true);
+    };
+    $('legacyImportButton').onclick = () => {
+      runLegacyImport(false);
+    };
     $('runVlmButton').onclick = () => {
       runSelectedVlm();
     };
@@ -2089,7 +2424,9 @@
     $('showAllButton').onclick = () => {
       listMode = 'all';
       resultFilter = '';
+      tagFilter = '';
       $('resultFilter').value = '';
+      $('tagFilter').value = '';
       resetListPage();
       selectFirstVisibleRecordIfNeeded();
       renderList();
@@ -2127,6 +2464,16 @@
           renderDetail();
         }
       }
+      batchSelectedIds.clear();
+      selectFirstVisibleRecordIfNeeded();
+      renderList();
+      renderDetail();
+      updateListMessage();
+    };
+    $('tagFilter').onchange = () => {
+      tagFilter = $('tagFilter').value;
+      listMode = 'all';
+      resetListPage();
       batchSelectedIds.clear();
       selectFirstVisibleRecordIfNeeded();
       renderList();
@@ -2179,9 +2526,6 @@
         closeImagePreview();
       }
     });
-    $('openRealtimeButton').onclick = () => {
-      window.open('/realtime/', '_blank', 'noreferrer');
-    };
     function formatClock(date = new Date()) {
       return new Intl.DateTimeFormat('zh-CN', {
         hour: '2-digit',
@@ -2195,8 +2539,10 @@
         const image = new Image();
         const url = `/api/realtime-proxy/frame?camera=${camera}&t=${Date.now()}`;
         image.onload = () => {
-          $(`realtimeImageCam${camera}`).src = url;
-          $(`realtimeCam${camera}Time`).textContent = formatClock();
+          const targetImage = $(`realtimeImageCam${camera}`);
+          const targetTime = $(`realtimeCam${camera}Time`);
+          if (targetImage) targetImage.src = url;
+          if (targetTime) targetTime.textContent = formatClock();
           resolve(true);
         };
         image.onerror = () => resolve(false);
@@ -2232,8 +2578,10 @@
           selectedId = newRecord.id;
           listMode = 'all';
           resultFilter = '';
+          tagFilter = '';
           selectedDate = '';
           $('resultFilter').value = '';
+          $('tagFilter').value = '';
           $('dateFilter').value = '';
         }
         await loadRecords(true);
@@ -2300,17 +2648,33 @@
       });
     };
     $('annotationForm').onsubmit = saveAnnotation;
-    for (const id of ['humanResult', 'sampleValidity']) {
-      $(id).onchange = () => {
-        formDirty = true;
-        renderClassification();
-      };
-    }
+    $('humanResult').onchange = () => {
+      formDirty = true;
+      renderReasons($('attributionBranch').value, getSelectedReasons().join('、'));
+      renderClassification();
+    };
+    $('sampleValidity').onchange = () => {
+      formDirty = true;
+      renderClassification();
+    };
+    $('objectTag').oninput = () => {
+      formDirty = true;
+    };
     $('attributionBranch').onchange = () => {
       formDirty = true;
       const branch = $('attributionBranch').value;
       renderReasons(branch, '');
+      $('customReasonMessage').textContent = '';
       renderClassification();
+    };
+    $('addReasonButton').onclick = () => {
+      addCustomReason();
+    };
+    $('customReasonInput').onkeydown = (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        addCustomReason();
+      }
     };
     $('attributionReasonToggle').onclick = () => {
       if ($('attributionReasonToggle').disabled) return;
@@ -2325,7 +2689,9 @@
       formDirty = true;
     };
 
-    loadRecords(false).then(() => {
+    loadCustomReasons().catch((error) => {
+      $('customReasonMessage').textContent = error.message || String(error);
+    }).then(() => loadRecords(false)).then(() => {
       if ($('autoVlmOnLoad').checked) {
         return startMissingAutoVlm();
       }

@@ -1,3 +1,6 @@
 node_modules/
 platform/*.log
 platform/server.*.log
+platform/*.import-backup-*.json
+platform/gripper_eval_data.before-delete-vlm-failed-*.json
+platform/~$*
