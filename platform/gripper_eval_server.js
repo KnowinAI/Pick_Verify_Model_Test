@@ -493,6 +493,8 @@ async function getMergedRecords(limit) {
 
 function summarize(records) {
   const evaluationRecords = records.filter(participatesInEvaluation);
+  const matrixCategories = ['正确识别夹住', '漏判', '误判', '正确识别未夹住'];
+  const objectTagStats = new Map();
   const summary = {
     total: 0,
     evaluationTotal: evaluationRecords.length,
@@ -515,6 +517,7 @@ function summarize(records) {
       无法判断: 0,
     },
     attribution: {},
+    objectTagStats: [],
   };
 
   for (const record of evaluationRecords) {
@@ -526,8 +529,36 @@ function summarize(records) {
     if (annotation.sample_validity === 'valid') summary.valid += 1;
     if (record.vlm && record.vlm.status === 'completed') summary.vlmCompleted += 1;
     if ((record.vlm && record.vlm.status === 'failed') || record.vlm_status === 'failed') summary.vlmFailed += 1;
-    if (['正确识别夹住', '漏判', '误判', '正确识别未夹住'].includes(category)) {
+    if (matrixCategories.includes(category)) {
       summary.evaluable += 1;
+      const objectTag = String(annotation.object_tag || '').trim();
+      if (objectTag) {
+        const stat = objectTagStats.get(objectTag) || {
+          tag: objectTag,
+          total: 0,
+          tp: 0,
+          fn: 0,
+          fp: 0,
+          tn: 0,
+          correct: 0,
+          accuracy: null,
+          missRate: null,
+          falseAlarmRate: null,
+        };
+        stat.total += 1;
+        if (category === '正确识别夹住') {
+          stat.tp += 1;
+          stat.correct += 1;
+        } else if (category === '漏判') {
+          stat.fn += 1;
+        } else if (category === '误判') {
+          stat.fp += 1;
+        } else if (category === '正确识别未夹住') {
+          stat.tn += 1;
+          stat.correct += 1;
+        }
+        objectTagStats.set(objectTag, stat);
+      }
     }
     if (annotation.attribution_branch) {
       summary.attribution[annotation.attribution_branch] = (summary.attribution[annotation.attribution_branch] || 0) + 1;
@@ -548,6 +579,21 @@ function summarize(records) {
   summary.missRate = tp + fn ? fn / (tp + fn) : null;
   summary.falseAlarmRate = fp + tn ? fp / (fp + tn) : null;
   summary.labelCoverage = summary.evaluationTotal ? summary.labeled / summary.evaluationTotal : null;
+  summary.objectTagStats = Array.from(objectTagStats.values())
+    .map((stat) => ({
+      ...stat,
+      accuracy: stat.total ? stat.correct / stat.total : null,
+      missRate: stat.tp + stat.fn ? stat.fn / (stat.tp + stat.fn) : null,
+      falseAlarmRate: stat.fp + stat.tn ? stat.fp / (stat.fp + stat.tn) : null,
+    }))
+    .sort((a, b) => {
+      const aErrors = a.fn + a.fp;
+      const bErrors = b.fn + b.fp;
+      if (aErrors !== bErrors) return bErrors - aErrors;
+      if (a.accuracy !== b.accuracy) return (a.accuracy ?? 1) - (b.accuracy ?? 1);
+      if (a.total !== b.total) return b.total - a.total;
+      return a.tag.localeCompare(b.tag, 'zh-Hans-CN');
+    });
 
   return summary;
 }
@@ -946,6 +992,26 @@ async function handleApi(req, res, url) {
     if (!customReasons[branch].some((entry) => entry.reason === reason && entry.human_result === humanResult)) {
       customReasons[branch].push({ reason, human_result: humanResult });
     }
+    data.custom_reason_options = customReasons;
+    writeData(data);
+    sendJson(res, 200, { ok: true, custom_reasons: customReasons, reason: { branch, reason, human_result: humanResult } });
+    return;
+  }
+
+  if (req.method === 'DELETE' && url.pathname === '/api/custom-reasons') {
+    const body = JSON.parse(await readBody(req) || '{}');
+    const branch = String(body.branch || '').trim().slice(0, 40);
+    const reason = String(body.reason || '').trim().slice(0, 80);
+    const humanResult = String(body.human_result || '').trim().slice(0, 40);
+    if (!branch || !reason) {
+      sendJson(res, 400, { ok: false, message: '请填写归因分支和具体原因' });
+      return;
+    }
+    const data = readData();
+    const customReasons = normalizeCustomReasonOptions(data.custom_reason_options);
+    const current = customReasons[branch] || [];
+    customReasons[branch] = current.filter((entry) => !(entry.reason === reason && entry.human_result === humanResult));
+    if (!customReasons[branch].length) delete customReasons[branch];
     data.custom_reason_options = customReasons;
     writeData(data);
     sendJson(res, 200, { ok: true, custom_reasons: customReasons, reason: { branch, reason, human_result: humanResult } });
