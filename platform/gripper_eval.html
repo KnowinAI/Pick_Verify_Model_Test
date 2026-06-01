@@ -1,0 +1,2341 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>夹爪识别测试评估</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --line: #d5deeb;
+      --text: #172033;
+      --muted: #5d6983;
+      --accent: #2859d6;
+      --soft: #e8efff;
+      --danger: #b42318;
+      --success: #197c45;
+      --warning: #8a5b00;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main {
+      max-width: 1480px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    h1, h2, h3, p { margin: 0; }
+    h1 { font-size: 26px; }
+    h2 { font-size: 18px; }
+    h3 { font-size: 15px; }
+    button, select, textarea {
+      font: inherit;
+    }
+    button {
+      border: 0;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #fff;
+      padding: 9px 14px;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: #eef2f8;
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+    button.danger {
+      background: #fdebea;
+      color: var(--danger);
+      border: 1px solid #f2c0bd;
+    }
+    button:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .muted { color: var(--muted); }
+    .stack { display: grid; gap: 14px; }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 18px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr 1fr;
+      gap: 14px;
+      align-items: start;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(23, 32, 51, .07);
+      padding: 16px;
+    }
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .realtime-panel {
+      display: grid;
+      gap: 10px;
+    }
+    .realtime-frame {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #111827;
+      color: #fff;
+      padding: 16px;
+    }
+    .realtime-frame-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .realtime-camera-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .realtime-camera-card {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+    .realtime-camera-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: #e5e7eb;
+      font-weight: 750;
+    }
+    .realtime-camera-card img {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      object-fit: contain;
+      border-radius: 10px;
+      background: #0f172a;
+      display: block;
+    }
+    .inline-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      user-select: none;
+    }
+    .record-list {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .record-item {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      cursor: pointer;
+      overflow: hidden;
+      position: relative;
+    }
+    .record-item.batch-selected {
+      box-shadow: 0 0 0 2px #7ea1ff inset;
+    }
+    .batch-check {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      width: 18px;
+      height: 18px;
+      z-index: 2;
+      accent-color: var(--accent);
+    }
+    .record-item.active {
+      border-color: var(--accent);
+      background: var(--soft);
+    }
+    .record-item.vlm-ok { border-top: 5px solid var(--success); }
+    .record-item.vlm-failed { border-top: 5px solid var(--danger); }
+    .record-item.vlm-pending { border-top: 5px solid #a7b0c0; }
+    .record-group {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fff;
+      overflow: hidden;
+    }
+    .record-group.active {
+      border-color: var(--accent);
+      background: var(--soft);
+    }
+    .record-group-header {
+      display: none;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 10px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcff;
+      font-weight: 750;
+    }
+    .record-group-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      padding: 8px;
+    }
+    .record-group.single .record-group-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .record-group .record-item {
+      box-shadow: none;
+    }
+    .record-group .record-title {
+      font-size: 13px;
+    }
+    .record-item.rich-card {
+      padding: 12px;
+      background: #eef7ea;
+      border-color: #9ab58e;
+      border-top-width: 1px;
+    }
+    .record-item.rich-card.vlm-ok,
+    .record-item.rich-card.vlm-failed,
+    .record-item.rich-card.vlm-pending {
+      border-top-width: 1px;
+    }
+    .record-item.rich-card.active {
+      box-shadow: 0 0 0 2px rgba(47, 108, 246, .2) inset;
+    }
+    .record-image-wrap {
+      position: relative;
+      margin-bottom: 12px;
+    }
+    .record-camera-chip {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, .72);
+      color: #fff;
+      padding: 3px 8px;
+      font-size: 13px;
+      font-weight: 750;
+    }
+    .record-thumb {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+      display: block;
+      background: #eef2f8;
+      border-bottom: 1px solid var(--line);
+    }
+    .record-thumb:hover {
+      filter: brightness(.96);
+    }
+    .record-body {
+      padding: 10px;
+    }
+    .rich-card .record-body {
+      padding: 0;
+    }
+    .record-title {
+      font-weight: 650;
+      word-break: break-all;
+    }
+    .record-meta-line {
+      color: var(--muted);
+      margin-top: 4px;
+      font-size: 13px;
+      word-break: break-word;
+    }
+    .record-detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px 18px;
+      margin-top: 14px;
+    }
+    .record-field-label {
+      color: #78826d;
+      font-weight: 750;
+      margin-bottom: 4px;
+      text-transform: lowercase;
+    }
+    .record-field-value {
+      font-size: 18px;
+      font-weight: 800;
+      line-height: 1.25;
+      word-break: break-word;
+    }
+    .record-field-sub {
+      color: #596553;
+      margin-top: 4px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+    .record-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+    .record-actions button {
+      padding: 8px 12px;
+    }
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .badge {
+      border-radius: 999px;
+      padding: 3px 8px;
+      background: #eef2f8;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .badge.ok { background: #e7f6ee; color: var(--success); }
+    .badge.warn { background: #fff4db; color: var(--warning); }
+    .badge.err { background: #fdebea; color: var(--danger); }
+    .badge.pending { background: #eef2f8; color: var(--text); }
+    .badge.vlm-ok { background: #e7f6ee; color: var(--text); }
+    .badge.vlm-failed { background: #fdebea; color: var(--text); }
+    .badge.vlm-pending { background: #eef2f8; color: var(--text); }
+    .vlm-status-panel {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      display: grid;
+      gap: 6px;
+    }
+    .vlm-status-panel.ok {
+      background: #e7f6ee;
+      border-color: #b7e0c8;
+      color: var(--text);
+    }
+    .vlm-status-panel.failed {
+      background: #fdebea;
+      border-color: #f2c0bd;
+      color: var(--text);
+    }
+    .vlm-status-panel.pending {
+      background: #eef2f8;
+      border-color: var(--line);
+      color: var(--text);
+    }
+    .preview {
+      width: 100%;
+      max-height: 560px;
+      object-fit: contain;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #eef2f8;
+    }
+    .paired-preview {
+      display: none;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fbfcff;
+      padding: 10px;
+      gap: 8px;
+    }
+    .paired-preview.show {
+      display: grid;
+    }
+    .paired-preview img {
+      width: 100%;
+      max-height: 220px;
+      object-fit: contain;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #eef2f8;
+    }
+    .review-workbench {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(420px, .85fr);
+      gap: 18px;
+      align-items: start;
+    }
+    .preview-pane,
+    .annotation-pane {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+    .preview-toolbar {
+      justify-content: space-between;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      background: #fbfcff;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      align-items: stretch;
+    }
+    .status-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      display: grid;
+      gap: 10px;
+      background: #fff;
+    }
+    .status-card.human {
+      border-color: #bfd0ff;
+      background: #f7f9ff;
+    }
+    .status-card.model {
+      border-color: #d6dde8;
+      background: #f8fafc;
+    }
+    .status-card-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-weight: 800;
+    }
+    .status-card-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .status-card-actions button {
+      padding: 5px 9px;
+      border-radius: 8px;
+      font-size: 12px;
+    }
+    .status-card-tag {
+      border-radius: 999px;
+      padding: 3px 8px;
+      background: #eef2f8;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    label.field {
+      display: grid;
+      gap: 7px;
+      font-weight: 650;
+    }
+    label.field.disabled {
+      opacity: .55;
+    }
+    .field-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .field-hint {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 500;
+    }
+    select, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 11px 12px;
+      background: #fff;
+      color: var(--text);
+      font-weight: 650;
+    }
+    select:disabled,
+    textarea:disabled {
+      cursor: not-allowed;
+      background: #f3f6fb;
+      color: var(--muted);
+    }
+    textarea {
+      min-height: 78px;
+      resize: vertical;
+    }
+    .reason-help {
+      min-height: 20px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .reason-multi-select {
+      position: relative;
+    }
+    .reason-multi-toggle {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 11px 36px 11px 12px;
+      background: #fff;
+      color: var(--text);
+      font-weight: 650;
+      text-align: left;
+      position: relative;
+    }
+    .reason-multi-toggle::after {
+      content: "⌄";
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+    }
+    .reason-multi-toggle:disabled {
+      cursor: not-allowed;
+      background: #f3f6fb;
+      color: var(--muted);
+    }
+    .reason-check-list {
+      display: none;
+      gap: 8px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: #fff;
+      box-shadow: 0 10px 28px rgba(23, 32, 51, .16);
+      left: 0;
+      max-height: 240px;
+      overflow-y: auto;
+      position: absolute;
+      right: 0;
+      top: calc(100% + 6px);
+      z-index: 20;
+    }
+    .reason-check-list.open {
+      display: grid;
+    }
+    .reason-check {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-weight: 650;
+      line-height: 1.35;
+    }
+    .reason-check input {
+      margin-top: 3px;
+    }
+    .reason-check-list.disabled {
+      cursor: not-allowed;
+      background: #f3f6fb;
+      color: var(--muted);
+    }
+    .readonly-field {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 11px 12px;
+      background: #fff;
+      color: var(--text);
+      min-height: 44px;
+      border-style: dashed;
+      font-weight: 750;
+    }
+    .classification {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #f8faff;
+      padding: 10px 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      border-left: 6px solid #a7b0c0;
+    }
+    .classification.compact {
+      margin-top: 2px;
+    }
+    .classification.ok {
+      background: #f1faf5;
+      border-left-color: var(--success);
+    }
+    .classification.warn {
+      background: #fff9eb;
+      border-left-color: var(--warning);
+    }
+    .classification.err {
+      background: #fff4f3;
+      border-left-color: var(--danger);
+    }
+    .classification.pending {
+      background: #f3f6fb;
+      border-left-color: #a7b0c0;
+    }
+    .classification strong {
+      font-size: 18px;
+      line-height: 1.2;
+    }
+    .classification-main {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+    .classification-meta {
+      white-space: nowrap;
+    }
+    .form-section-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text);
+      font-weight: 800;
+      letter-spacing: .01em;
+    }
+    .form-section {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+      background: #fbfcff;
+    }
+    .form-section.primary {
+      background: #f8faff;
+      border-color: #cfdcff;
+    }
+    .section-index {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .attribution-prompt {
+      display: none;
+      border: 1px solid #ffd58a;
+      background: #fff8e6;
+      border-radius: 12px;
+      padding: 10px 12px;
+      color: #6f4a00;
+      font-weight: 700;
+    }
+    .attribution-prompt.show {
+      display: block;
+    }
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      background: #fbfcff;
+    }
+    .metric .value {
+      font-size: 22px;
+      font-weight: 750;
+      margin-top: 4px;
+    }
+    .matrix {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+    .matrix-cell {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      background: #fbfcff;
+    }
+    .matrix-cell .count {
+      font-size: 28px;
+      font-weight: 800;
+    }
+    .hidden { display: none !important; }
+    .message {
+      min-height: 20px;
+      color: var(--muted);
+    }
+    .message.error { color: var(--danger); }
+    .message.success { color: var(--success); }
+    .image-preview-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 999;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(15, 23, 42, .78);
+    }
+    .image-preview-modal.show {
+      display: flex;
+    }
+    .image-preview-dialog {
+      width: min(1120px, 96vw);
+      max-height: 94vh;
+      display: grid;
+      gap: 10px;
+      border-radius: 16px;
+      background: #fff;
+      padding: 12px;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, .35);
+    }
+    .image-preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .image-preview-title {
+      font-weight: 800;
+      word-break: break-all;
+    }
+    .image-preview-dialog img {
+      width: 100%;
+      max-height: calc(94vh - 86px);
+      object-fit: contain;
+      border-radius: 12px;
+      background: #0f172a;
+    }
+    .small-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .small-table td {
+      border-bottom: 1px solid var(--line);
+      padding: 7px 4px;
+    }
+    @media (max-width: 1180px) {
+      .review-workbench {
+        grid-template-columns: 1fr;
+      }
+      .dashboard-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .record-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 720px) {
+      .dashboard-grid,
+      .comparison-grid,
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+      .record-list { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="header">
+      <div class="stack">
+        <h1>夹爪识别人工标注工作台</h1>
+        <p class="muted">本地接收实时/上传图片，cam1 自动调用 VLM，并维护人工标注、归因与评估指标。</p>
+      </div>
+      <div class="toolbar">
+        <button id="refreshButton">刷新本地图片记录</button>
+        <a href="http://101.132.143.105:5087/" target="_blank" rel="noreferrer">打开 5087</a>
+      </div>
+    </div>
+
+    <section class="card realtime-panel" style="margin-bottom:16px;">
+      <div class="toolbar" style="justify-content:space-between;">
+        <div>
+          <h2>实时画面</h2>
+          <p class="muted">集成来源由服务端 REALTIME_BASE_URL 配置，默认读取 192.168.78.168:5033。</p>
+        </div>
+        <div class="toolbar">
+          <button id="saveRealtimeToListButton" type="button" class="secondary">保存实时画面到图片记录</button>
+          <input id="localUploadInput" type="file" accept="image/*" style="max-width:220px;">
+          <button id="uploadToListButton" type="button" class="secondary">上传图片到图片记录</button>
+          <button id="refreshRealtimeButton" type="button" class="secondary">刷新实时画面</button>
+          <button id="openRealtimeButton" type="button" class="secondary">新窗口打开实时画面</button>
+        </div>
+      </div>
+      <div class="realtime-frame">
+        <div class="realtime-frame-header">
+          <div>
+            <h2>双目相机实时预览</h2>
+            <p class="muted">左右画面来自相机服务，共享内存 `/cam_frames`。如果画面不动，先检查相机服务。</p>
+          </div>
+          <span id="realtimeRefreshText" class="badge">等待刷新</span>
+        </div>
+        <div class="realtime-camera-grid">
+          <div class="realtime-camera-card">
+            <div class="realtime-camera-title">
+              <span>Left Camera 0</span>
+              <span id="realtimeCam0Time">-</span>
+            </div>
+            <img id="realtimeImageCam0" src="/api/realtime-proxy/frame?camera=0&t=0" alt="实时画面 cam0">
+          </div>
+          <div class="realtime-camera-card">
+            <div class="realtime-camera-title">
+              <span>Right Camera 1</span>
+              <span id="realtimeCam1Time">-</span>
+            </div>
+            <img id="realtimeImageCam1" src="/api/realtime-proxy/frame?camera=1&t=0" alt="实时画面 cam1">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="grid">
+      <section class="card stack">
+        <div>
+          <h2>人工复核标注</h2>
+          <p class="muted">记录三分类夹爪状态，系统自动归并成夹住/未夹住并计算漏判、误判。</p>
+        </div>
+
+        <div id="emptyDetail" class="muted">请先选择左侧图片记录。</div>
+        <div id="detailPanel" class="stack hidden">
+          <div class="review-workbench">
+            <div class="preview-pane">
+              <img id="previewImage" class="preview" alt="夹爪图片">
+              <div id="pairedPreview" class="paired-preview">
+                <div id="pairedPreviewTitle" class="muted"></div>
+                <img id="pairedPreviewImage" alt="同组相机参考图">
+              </div>
+
+              <div class="toolbar preview-toolbar">
+                <div class="toolbar">
+                  <button id="prevRecordButton" type="button" class="secondary">上一张</button>
+                  <button id="nextRecordButton" type="button" class="secondary">下一张</button>
+                  <button id="nextUnlabeledTopButton" type="button" class="secondary">下一张未标注</button>
+                </div>
+                <div class="toolbar">
+                  <button id="deleteRecordButton" type="button" class="danger">移除标注</button>
+                </div>
+              </div>
+            </div>
+
+            <form id="annotationForm" class="annotation-pane">
+              <div class="form-section primary">
+                <div class="form-section-title">结果确认</div>
+                <div class="comparison-grid">
+                  <label class="status-card human">
+                    <span class="status-card-title">
+                      实测结果
+                      <span class="status-card-tag">人工选择</span>
+                    </span>
+                    <select id="humanResult" required>
+                      <option value="">请选择</option>
+                      <option value="grasped">闭合，已夹住</option>
+                      <option value="closed_not_grasped">闭合，未夹住</option>
+                      <option value="open_not_grasped">张开，未夹住</option>
+                      <option value="unknown">无法判断</option>
+                    </select>
+                  </label>
+
+                  <div class="status-card model">
+                    <span class="status-card-title">
+                      模型推理结果
+                      <span class="status-card-actions">
+                        <span class="status-card-tag">VLM 自动</span>
+                        <button id="runVlmButton" type="button" class="secondary">人工调用模型</button>
+                      </span>
+                    </span>
+                    <div id="modelResultText" class="readonly-field">等待 VLM 推理</div>
+                    <input id="modelResult" type="hidden" value="no_result">
+                    <div id="vlmMessage" class="message"></div>
+                  </div>
+                </div>
+
+                <div class="classification compact">
+                  <div class="classification-main">
+                    <span class="muted classification-meta">评估结论</span>
+                    <strong id="classificationText">等待选择</strong>
+                    <span id="statusMatchText" class="muted">等待实测结果和模型结果。</span>
+                  </div>
+                  <span id="classificationBadge" class="badge">未评估</span>
+                </div>
+              </div>
+
+              <div class="form-section">
+                <div class="form-section-title">样本与评估归因</div>
+                <label class="field">
+                  <span class="field-title">是否有效样本 <span class="field-hint">默认有效</span></span>
+                  <select id="sampleValidity">
+                    <option value="valid">有效</option>
+                    <option value="invalid">无效</option>
+                    <option value="recheck">待人工标注</option>
+                  </select>
+                </label>
+
+                <div id="attributionPrompt" class="attribution-prompt">当前为异常评估结论，请补充归因分支和具体原因。</div>
+                <label id="attributionBranchField" class="field">
+                  <span class="field-title">归因分支 <span class="field-hint">评估异常时填写</span></span>
+                  <select id="attributionBranch">
+                    <option value="">正常样本，无需归因</option>
+                    <option value="物体特征">物体特征</option>
+                    <option value="视觉感知">视觉感知</option>
+                    <option value="图像质量">图像质量</option>
+                  </select>
+                </label>
+
+                <div id="attributionReasonField" class="field">
+                  <span class="field-title">具体原因 <span class="field-hint">可多选</span></span>
+                  <div id="attributionReasonMultiSelect" class="reason-multi-select">
+                    <button id="attributionReasonToggle" class="reason-multi-toggle" type="button">请选择具体原因</button>
+                    <div id="attributionReasonList" class="reason-check-list">
+                      <span class="muted">请先选择归因分支</span>
+                    </div>
+                  </div>
+                  <div id="attributionReasonHelp" class="reason-help">选择具体原因后会显示判定口径。</div>
+                </div>
+
+                <label id="noteField" class="field">
+                  <span class="field-title">原因说明 <span class="field-hint">可补充细节</span></span>
+                  <textarea id="note" placeholder="可填写遮挡、反光、角度、边界样本等说明"></textarea>
+                </label>
+              </div>
+
+              <div class="toolbar">
+                <button type="submit">保存人工标注</button>
+                <label class="inline-check">
+                  <input id="autoNext" type="checkbox" checked>
+                  保存后自动下一张
+                </label>
+                <span id="saveMessage" class="message"></span>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <aside class="card stack">
+        <div>
+          <h2>评估看板</h2>
+          <p class="muted">总样本数与混淆矩阵四格使用同一口径，待标注、无效、无法判断和 VLM 失败单独计数。</p>
+        </div>
+
+        <div class="dashboard-grid">
+          <div class="metric-grid">
+            <div class="metric"><div class="muted">参与评估总样本</div><div id="mTotal" class="value">-</div></div>
+            <div class="metric"><div class="muted">标注覆盖率</div><div id="mCoverage" class="value">-</div></div>
+            <div class="metric"><div class="muted">可评估准确率</div><div id="mAccuracy" class="value">-</div></div>
+            <div class="metric"><div class="muted">漏判率</div><div id="mMissRate" class="value">-</div></div>
+          </div>
+
+          <div class="stack">
+            <h3>混淆矩阵主干</h3>
+            <div class="matrix">
+              <div class="matrix-cell"><div class="muted">正确识别夹住</div><div id="cTp" class="count">0</div></div>
+              <div class="matrix-cell"><div class="muted">漏判</div><div id="cFn" class="count">0</div></div>
+              <div class="matrix-cell"><div class="muted">误判</div><div id="cFp" class="count">0</div></div>
+              <div class="matrix-cell"><div class="muted">正确识别未夹住</div><div id="cTn" class="count">0</div></div>
+            </div>
+          </div>
+
+          <div class="stack">
+            <h3>归因分布</h3>
+            <table class="small-table">
+              <tbody id="attributionRows"></tbody>
+            </table>
+          </div>
+
+          <div class="stack">
+            <h3>旁路小计</h3>
+            <table class="small-table">
+              <tbody id="sideRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <section class="card stack" style="margin-top:16px;">
+      <div>
+        <h2>图片记录</h2>
+        <p class="muted">下面按每行三张平铺展示，点击任意图片后在上方进行 VLM 推理和人工标注。</p>
+      </div>
+      <div class="toolbar">
+        <button id="showAllButton" type="button" class="secondary">全部图片</button>
+        <button id="toggleBatchButton" type="button" class="secondary">批量选择</button>
+        <button id="batchDeleteButton" type="button" class="danger" disabled>删除选中</button>
+        <label class="inline-check">
+          结果筛选
+          <select id="resultFilter" style="width:auto;min-width:150px;padding:7px 10px;">
+            <option value="">全部结果</option>
+            <option value="__unlabeled">待人工标注</option>
+            <option value="误判">误判</option>
+            <option value="漏判">漏判</option>
+            <option value="正确识别夹住">正确识别夹住</option>
+            <option value="正确识别未夹住">正确识别未夹住</option>
+            <option value="VLM 调用失败">VLM 调用失败</option>
+            <option value="无法判断">无法判断</option>
+            <option value="无效样本">无效样本</option>
+          </select>
+        </label>
+        <label class="inline-check">
+          日期分页
+          <select id="dateFilter" style="width:auto;min-width:150px;padding:7px 10px;">
+            <option value="">全部日期</option>
+          </select>
+        </label>
+        <button id="prevDateButton" type="button" class="secondary">上一日期</button>
+        <button id="nextDateButton" type="button" class="secondary">下一日期</button>
+        <button id="autoVlmButton" type="button" class="secondary">自动补齐 VLM</button>
+        <label class="inline-check">
+          <input id="autoVlmOnLoad" type="checkbox" checked>
+          打开页面自动调用 VLM
+        </label>
+        <span id="queueMessage" class="muted"></span>
+      </div>
+      <div id="autoVlmMessage" class="message"></div>
+      <div id="listMessage" class="message"></div>
+      <div id="recordList" class="record-list"></div>
+      <div class="toolbar">
+        <button id="prevListPageButton" type="button" class="secondary">上一页</button>
+        <span id="listPageInfo" class="muted"></span>
+        <button id="nextListPageButton" type="button" class="secondary">下一页</button>
+      </div>
+    </section>
+  </main>
+
+  <div id="imagePreviewModal" class="image-preview-modal" aria-hidden="true">
+    <div class="image-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="imagePreviewTitle">
+      <div class="image-preview-header">
+        <div>
+          <div id="imagePreviewTitle" class="image-preview-title">图片预览</div>
+          <div id="imagePreviewTime" class="muted"></div>
+        </div>
+        <button id="closeImagePreviewButton" type="button" class="secondary">关闭</button>
+      </div>
+      <img id="imagePreviewImage" alt="图片预览">
+    </div>
+  </div>
+
+  <script>
+    const SOURCE_BASE_URL = 'http://101.132.143.105:5022';
+    const reasonOptions = {
+      '物体特征': ['透明/反光', '颜色接近背景', '形状细长', '边缘不清晰', '物体太小'],
+      '视觉感知': [
+        '张开未夹住，物品在夹爪中间',
+        '张开未夹住，夹爪中间无遮挡',
+        '闭合未夹住，物品与夹爪视觉重叠',
+        '闭合未夹住，物品与夹爪无视觉重叠',
+        '闭合未夹住，接触平面或桌面',
+        '闭合夹住，物体露出很少',
+        '闭合夹住，一侧被遮挡',
+      ],
+      '图像质量': ['模糊', '过曝/欠曝', '暗光', '运动拖影', '背景干扰'],
+    };
+    const reasonLabels = {
+      '张开未夹住，物品在夹爪中间': '张开未夹住，物品在夹爪中间',
+      '张开未夹住，夹爪中间无遮挡': '张开未夹住，夹爪中间无遮挡',
+      '闭合未夹住，物品与夹爪视觉重叠': '闭合未夹住，物品与夹爪视觉重叠',
+      '闭合未夹住，物品与夹爪无视觉重叠': '闭合未夹住，物品与夹爪无视觉重叠',
+      '闭合未夹住，接触平面或桌面': '闭合未夹住，接触平面或桌面',
+      '闭合夹住，物体露出很少': '闭合夹住，物体露出很少',
+      '闭合夹住，一侧被遮挡': '闭合夹住，一侧被遮挡',
+      'E1 透视重叠/背景杂乱/阴影连接': 'E1 间隙误判：透视重叠/背景杂乱/阴影连接',
+      'E2 夹爪闭合但中间物体透明/极薄': 'E2 间隙误判：夹爪闭合但中间物体透明/极薄',
+      'E3 尖端贴合紧密，后部间隙不可见': 'E3 间隙误判：尖端贴合紧密，后部间隙不可见',
+      'E4 物品被包围，看起来像被夹紧': 'E4 接触误判：物品被包围，看起来像被夹紧',
+      'E5 颜色/纹理相近，接触边界消失': 'E5 接触误判：颜色/纹理相近，接触边界消失',
+      'E6 夹爪闭合但物品在旁边，看起来像没抓到': 'E6 接触误判：夹爪闭合但物品在旁边，看起来像没抓到',
+      'E7 尖端接触不明显，后部张开误导': 'E7 接触误判：尖端接触不明显，后部张开误导',
+      'E8 夹爪边缘被遮挡/反光看不清': 'E8 开合误判：夹爪边缘被遮挡/反光看不清',
+      'E9 夹爪后部张开，尖端接触被忽略': 'E9 开合误判：夹爪后部张开，尖端接触被忽略',
+      'E10 夹爪与物品融为一体，看不到边界': 'E10 开合误判：夹爪与物品融为一体，看不到边界',
+      'E8 夹爪与物品同色，边界完全消失': 'E5 接触误判：颜色/纹理相近，接触边界消失',
+      'E9 夹爪边缘被遮挡/反光看不清': 'E8 开合误判：夹爪边缘被遮挡/反光看不清',
+      'E10 夹爪后部张开，尖端接触被忽略': 'E9 开合误判：夹爪后部张开，尖端接触被忽略',
+      'E11 夹爪与物品融为一体，看不到边界': 'E10 开合误判：夹爪与物品融为一体，看不到边界',
+    };
+    const reasonHelpText = {
+      '张开未夹住，物品在夹爪中间': '张开未夹住：物品位于夹爪中间，但夹爪未闭合形成夹持。',
+      '张开未夹住，夹爪中间无遮挡': '张开未夹住：夹爪中间无遮挡物，可判断为空夹张开。',
+      '闭合未夹住，物品与夹爪视觉重叠': '闭合未夹住：画面中物品与夹爪有视觉重叠，但未形成真实夹持。',
+      '闭合未夹住，物品与夹爪无视觉重叠': '闭合未夹住：夹爪闭合但物品与夹爪无明显视觉重叠。',
+      '闭合未夹住，接触平面或桌面': '闭合未夹住：夹爪接触平面或桌面，容易被误认为夹住物体。',
+      '闭合夹住，物体露出很少': '闭合夹住：物体被夹住但露出区域很少，画面证据较弱。',
+      '闭合夹住，一侧被遮挡': '闭合夹住：物体或夹爪一侧被遮挡，导致夹持状态不完整可见。',
+      'E1 透视重叠/背景杂乱/阴影连接': '间隙误判：画面投影、背景或阴影让夹爪间隙看起来被连接。',
+      'E2 夹爪闭合但中间物体透明/极薄': '间隙误判：夹爪已闭合，但透明或极薄物体让中间空间不容易判断。',
+      'E3 尖端贴合紧密，后部间隙不可见': '间隙误判：尖端已经贴合，后部是否还有间隙在画面中不明显。',
+      'E4 物品被包围，看起来像被夹紧': '接触误判：物体被夹爪围住，但不一定存在真实稳定夹持。',
+      'E5 颜色/纹理相近，接触边界消失': '接触误判：物体和夹爪或背景的颜色纹理接近，接触边界难以分辨。',
+      'E6 夹爪闭合但物品在旁边，看起来像没抓到': '接触误判：夹爪闭合与物体位置关系容易混淆，物品可能在夹爪旁侧。',
+      'E7 尖端接触不明显，后部张开误导': '接触误判：尖端是否接触不清楚，后部张开形态干扰判断。',
+      'E8 夹爪边缘被遮挡/反光看不清': '开合误判：夹爪边缘被遮挡或反光覆盖，导致开合状态难以判断。',
+      'E9 夹爪后部张开，尖端接触被忽略': '开合误判：后部张开更显眼，模型或人工容易忽略尖端接触。',
+      'E10 夹爪与物品融为一体，看不到边界': '开合误判：夹爪和物品视觉上融合，难以分清夹爪开合边界。',
+      'E8 夹爪与物品同色，边界完全消失': '接触误判：物体和夹爪或背景的颜色纹理接近，接触边界难以分辨。',
+      'E9 夹爪边缘被遮挡/反光看不清': '开合误判：夹爪边缘被遮挡或反光覆盖，导致开合状态难以判断。',
+      'E10 夹爪后部张开，尖端接触被忽略': '开合误判：后部张开更显眼，模型或人工容易忽略尖端接触。',
+      'E11 夹爪与物品融为一体，看不到边界': '开合误判：夹爪和物品视觉上融合，难以分清夹爪开合边界。',
+    };
+    const labelMap = {
+      grasped: '闭合，已夹住',
+      not_grasped: '未夹住',
+      closed_not_grasped: '闭合，未夹住',
+      open_not_grasped: '张开，未夹住',
+      unknown: '无法判断',
+      no_result: '无结果',
+      valid: '有效',
+      invalid: '无效',
+      recheck: '待人工标注',
+    };
+    const statusLabelMap = {
+      Closed_Empty: '闭合，未夹住',
+      Closed_Grasped: '闭合，已夹住',
+      Opened_Empty: '张开，未夹住',
+      Unknown: '无法判断',
+    };
+    const RECORD_FETCH_LIMIT = 'all';
+    const RECORD_PAGE_SIZE = 120;
+
+    let records = [];
+    let selectedId = '';
+    let listMode = 'unlabeled';
+    let resultFilter = '';
+    let selectedDate = '';
+    let autoVlmTimer = null;
+    let activeDetailRecordId = '';
+    let formDirty = false;
+    let batchMode = false;
+    let currentListPage = 1;
+    const batchSelectedIds = new Set();
+
+    const $ = (id) => document.getElementById(id);
+    const pct = (value) => value === null || value === undefined ? '-' : `${(value * 100).toFixed(1)}%`;
+    const safe = (value, fallback = '-') => value === null || value === undefined || value === '' ? fallback : String(value);
+    const escapeHtml = (value) => safe(value, '').replace(/[&<>"']/g, (char) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    }[char]));
+
+    function formatDateTime(value) {
+      if (!value) return '-';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return safe(value);
+      const parts = new Intl.DateTimeFormat('sv-SE', {
+        timeZone: 'Asia/Shanghai',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      }).formatToParts(date);
+      const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+      return `${map.year}-${map.month}-${map.day} ${map.hour}:${map.minute}:${map.second}`;
+    }
+
+    function getRecordTime(record) {
+      const value = record && (record.created_at || record.local_updated_at);
+      const time = new Date(value || 0).getTime();
+      return Number.isNaN(time) ? 0 : time;
+    }
+
+    function sortRecordsNewest(items) {
+      return [...items].sort((a, b) => getRecordTime(b) - getRecordTime(a));
+    }
+
+    function getRecordDateKey(record) {
+      if (!record || !record.created_at) return '';
+      const formatted = formatDateTime(record.created_at);
+      return formatted === '-' ? '' : formatted.slice(0, 10);
+    }
+
+    function getAvailableDateKeys() {
+      return Array.from(new Set(records.map(getRecordDateKey).filter(Boolean))).sort((a, b) => b.localeCompare(a));
+    }
+
+    function updateListMessage() {
+      const dateText = selectedDate ? `，日期 ${selectedDate}` : '';
+      const visibleRecords = getVisibleRecords();
+      const visibleGroups = groupVisibleRecords(visibleRecords);
+      const totalPages = Math.max(1, Math.ceil(visibleGroups.length / RECORD_PAGE_SIZE));
+      $('listMessage').textContent = `已读取 ${records.length} 条记录${dateText}，当前匹配 ${visibleRecords.length} 条，共 ${visibleGroups.length} 组，第 ${Math.min(currentListPage, totalPages)}/${totalPages} 页`;
+    }
+
+    function resetListPage() {
+      currentListPage = 1;
+    }
+
+    function focusListPageForRecord(recordId) {
+      if (!recordId) return;
+      const groups = groupVisibleRecords(getVisibleRecords());
+      const groupIndex = groups.findIndex((group) => group.records.some((record) => record.id === recordId));
+      if (groupIndex >= 0) {
+        currentListPage = Math.floor(groupIndex / RECORD_PAGE_SIZE) + 1;
+      }
+    }
+
+    function selectFirstVisibleRecordIfNeeded() {
+      const visibleRecords = getVisibleRecords();
+      if (!visibleRecords.length) {
+        selectedId = '';
+        formDirty = false;
+        return;
+      }
+      if (!visibleRecords.some((record) => record.id === selectedId)) {
+        selectedId = visibleRecords[0].id;
+        formDirty = false;
+      }
+    }
+
+    function renderDatePager() {
+      const dates = getAvailableDateKeys();
+      if (selectedDate && !dates.includes(selectedDate)) selectedDate = '';
+      const select = $('dateFilter');
+      select.innerHTML = '<option value="">全部日期</option>' + dates
+        .map((date) => `<option value="${date}">${date}</option>`)
+        .join('');
+      select.value = selectedDate;
+      const currentIndex = dates.indexOf(selectedDate);
+      $('prevDateButton').disabled = !selectedDate || currentIndex <= 0;
+      $('nextDateButton').disabled = !selectedDate || currentIndex < 0 || currentIndex >= dates.length - 1;
+    }
+
+    function localModelFromSource(record) {
+      if (record.predicted_status === 'Closed_Grasped') return 'grasped';
+      if (record.predicted_status === 'Closed_Empty' || record.predicted_status === 'Opened_Empty') return 'not_grasped';
+      return '';
+    }
+
+    function modelResultFromVlm(record) {
+      if (!record || !record.vlm) return '';
+      return record.vlm.model_result || localModelFromSource(record);
+    }
+
+    function getSelectedRecord() {
+      return records.find((item) => item.id === selectedId);
+    }
+
+    function findPairedRecord(record) {
+      const metadata = (record && record.source_metadata) || {};
+      if (metadata.paired_record_id) {
+        return records.find((item) => item.id === metadata.paired_record_id);
+      }
+      if (!metadata.capture_group_id) return null;
+      return records.find((item) => item.id !== record.id && item.source_metadata && item.source_metadata.capture_group_id === metadata.capture_group_id);
+    }
+
+    function getSelectedModelResult() {
+      const record = getSelectedRecord();
+      return modelResultFromVlm(record) || (record && record.model_result) || localModelFromSource(record) || 'no_result';
+    }
+
+    function humanStatusCode(value) {
+      if (value === 'grasped') return 'Closed_Grasped';
+      if (value === 'closed_not_grasped') return 'Closed_Empty';
+      if (value === 'open_not_grasped') return 'Opened_Empty';
+      return '';
+    }
+
+    function modelStatusCode(record) {
+      if (!record) return '';
+      return (record.vlm && record.vlm.predicted_status) || record.predicted_status || '';
+    }
+
+    function binaryStatus(statusCode) {
+      if (statusCode === 'Closed_Grasped') return 'grasped';
+      if (statusCode === 'Not_Grasped' || statusCode === 'Closed_Empty' || statusCode === 'Opened_Empty') return 'not_grasped';
+      return '';
+    }
+
+    function getImageUrl(record) {
+      if (!record || !record.image_url) return '';
+      if (record.image_url.startsWith('/')) return record.image_url;
+      return record.image_url.startsWith('http') ? record.image_url : SOURCE_BASE_URL + record.image_url;
+    }
+
+    function getRecordDisplayName(record) {
+      if (!record) return '';
+      const metadata = record.source_metadata || {};
+      if (metadata.source === '9002_snapshot' || metadata.capture_group_id) {
+        return `cam${safe(metadata.camera_id, '未知')} ${formatDateTime(record.created_at)}`;
+      }
+      return safe(record.source_id || record.original_filename || record.id);
+    }
+
+    function openImagePreview(record) {
+      if (!record) return;
+      $('imagePreviewTitle').textContent = getRecordDisplayName(record) || '图片预览';
+      $('imagePreviewTime').textContent = formatDateTime(record.created_at);
+      $('imagePreviewImage').src = getImageUrl(record);
+      $('imagePreviewModal').classList.add('show');
+      $('imagePreviewModal').setAttribute('aria-hidden', 'false');
+    }
+
+    function closeImagePreview() {
+      $('imagePreviewModal').classList.remove('show');
+      $('imagePreviewModal').setAttribute('aria-hidden', 'true');
+      $('imagePreviewImage').removeAttribute('src');
+    }
+
+    function getReviewUrl(record) {
+      if (!record) return SOURCE_BASE_URL;
+      return record.review_path ? SOURCE_BASE_URL + record.review_path : `${SOURCE_BASE_URL}/review/${record.id}`;
+    }
+
+    function classify(human, model, validity) {
+      if (!shouldEvaluateRecord(getSelectedRecord())) return '参考图像';
+      if (validity === 'invalid') return '无效样本';
+      if (!human || human === 'not_grasped') return '待人工标注';
+      if (human === 'unknown') return '无法判断';
+      if (!model || model === 'no_result') return 'VLM 调用失败';
+      const humanStatus = humanStatusCode(human);
+      const modelStatus = modelStatusCode(getSelectedRecord());
+      if (humanStatus && modelStatus && humanStatus === modelStatus) {
+        return humanStatus === 'Closed_Grasped' ? '正确识别夹住' : '正确识别未夹住';
+      }
+      const humanBinary = binaryStatus(humanStatus);
+      if (humanBinary === 'grasped' && model === 'grasped') return '正确识别夹住';
+      if (humanBinary === 'grasped' && model === 'not_grasped') return '漏判';
+      if (humanBinary === 'not_grasped' && model === 'grasped') return '误判';
+      if (humanBinary === 'not_grasped' && model === 'not_grasped') return '正确识别未夹住';
+      return '待人工标注';
+    }
+
+    function badgeClass(category) {
+      if (category.includes('正确')) return 'ok';
+      if (category === '漏判' || category === '误判' || category.includes('失败')) return 'err';
+      if (category === '待人工标注') return 'pending';
+      return 'warn';
+    }
+
+    function classificationClass(category) {
+      if (category.includes('正确')) return 'ok';
+      if (category === '漏判' || category === '误判' || category.includes('失败')) return 'err';
+      if (category === '待人工标注') return 'pending';
+      return 'warn';
+    }
+
+    function needsAttribution(category) {
+      return category === '误判' || category === '漏判';
+    }
+
+    function getVlmState(record) {
+      const localStatus = record && record.vlm && record.vlm.status;
+      const sourceStatus = record && record.vlm_status;
+      const status = localStatus || sourceStatus || '';
+      if (status === 'completed') return 'ok';
+      if (status === 'failed') return 'failed';
+      return 'pending';
+    }
+
+    function getVlmStatusText(record) {
+      const state = getVlmState(record);
+      if (state === 'ok') return 'VLM 成功';
+      if (state === 'failed') return 'VLM 失败';
+      return 'VLM 未推理';
+    }
+
+    function getPredictedStatusCn(record) {
+      const vlm = record && record.vlm ? record.vlm : {};
+      return statusLabelMap[vlm.predicted_status] || statusLabelMap[record && record.predicted_status] || vlm.predicted_status_cn || '未知';
+    }
+
+    function getModelResultText(record) {
+      const state = getVlmState(record);
+      if (state === 'ok') return getPredictedStatusCn(record);
+      if (state === 'failed') return 'VLM 调用失败';
+      return '等待 VLM 推理';
+    }
+
+    function isAnnotated(record) {
+      return Boolean(record && record.annotation && record.annotation.human_result);
+    }
+
+    function shouldEvaluateRecord(record) {
+      if (!record) return true;
+      if (record.participates_in_evaluation === false) return false;
+      const metadata = record.source_metadata || {};
+      if (metadata.evaluate === false) return false;
+      if (metadata.source === '9002_snapshot') {
+        return Number(metadata.camera_id) === 1;
+      }
+      return true;
+    }
+
+    function needsReattribution(record) {
+      const branch = record && record.annotation && record.annotation.attribution_branch;
+      return Boolean(branch && !reasonOptions[branch]);
+    }
+
+    function getVisibleRecords() {
+      let baseRecords = records.filter(shouldEvaluateRecord);
+      if (listMode === 'unlabeled') {
+        baseRecords = baseRecords.filter((record) => !isAnnotated(record));
+      }
+      if (resultFilter === '__unlabeled') {
+        baseRecords = records.filter((record) => shouldEvaluateRecord(record) && !isAnnotated(record));
+      } else if (resultFilter) {
+        baseRecords = baseRecords.filter((record) => (record.eval_classification || '待人工标注') === resultFilter);
+      }
+      if (selectedDate) {
+        baseRecords = baseRecords.filter((record) => getRecordDateKey(record) === selectedDate);
+      }
+      return baseRecords;
+    }
+
+    function getNextUnlabeledId(fromId = selectedId) {
+      const unlabeled = records.filter((record) => shouldEvaluateRecord(record) && !isAnnotated(record));
+      if (!unlabeled.length) return '';
+      const currentIndex = records.findIndex((record) => record.id === fromId);
+      const nextAfterCurrent = records.find((record, index) => index > currentIndex && shouldEvaluateRecord(record) && !isAnnotated(record));
+      return (nextAfterCurrent || unlabeled[0]).id;
+    }
+
+    function getNextVisibleRecordId(fromId = selectedId) {
+      const visibleRecords = getVisibleRecords();
+      if (!visibleRecords.length) return '';
+      const currentIndex = visibleRecords.findIndex((record) => record.id === fromId);
+      const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % visibleRecords.length : 0;
+      return visibleRecords[nextIndex].id;
+    }
+
+    function getPrevVisibleRecordId(fromId = selectedId) {
+      const visibleRecords = getVisibleRecords();
+      if (!visibleRecords.length) return '';
+      const currentIndex = visibleRecords.findIndex((record) => record.id === fromId);
+      const prevIndex = currentIndex >= 0
+        ? (currentIndex - 1 + visibleRecords.length) % visibleRecords.length
+        : visibleRecords.length - 1;
+      return visibleRecords[prevIndex].id;
+    }
+
+    function updateQueueControls() {
+      const remaining = records.filter((record) => shouldEvaluateRecord(record) && !isAnnotated(record)).length;
+      const selectedCount = batchSelectedIds.size;
+      $('queueMessage').textContent = batchMode
+        ? `剩余未标注：${remaining} 张，已选中：${selectedCount} 张`
+        : `剩余未标注：${remaining} 张`;
+      $('showAllButton').className = listMode === 'all' ? '' : 'secondary';
+      $('nextUnlabeledTopButton').disabled = remaining === 0;
+      $('prevRecordButton').disabled = getVisibleRecords().length <= 1;
+      $('nextRecordButton').disabled = getVisibleRecords().length <= 1;
+      $('toggleBatchButton').textContent = batchMode ? '退出批量' : '批量选择';
+      $('batchDeleteButton').disabled = !batchMode || selectedCount === 0;
+      renderDatePager();
+    }
+
+    function groupVisibleRecords(visibleRecords) {
+      const groups = [];
+      const seen = new Set();
+      for (const record of visibleRecords) {
+        if (seen.has(record.id)) continue;
+        const metadata = record.source_metadata || {};
+        if (metadata.capture_group_id) {
+          const groupRecords = records
+            .filter((item) => item.source_metadata && item.source_metadata.capture_group_id === metadata.capture_group_id)
+            .sort((a, b) => Number(a.source_metadata.camera_id) - Number(b.source_metadata.camera_id));
+          groupRecords.forEach((item) => seen.add(item.id));
+          groups.push({ type: 'group', id: metadata.capture_group_id, records: groupRecords.filter(shouldEvaluateRecord) });
+        } else {
+          seen.add(record.id);
+          groups.push({ type: 'single', id: record.id, records: [record] });
+        }
+      }
+      return groups.filter((group) => group.records.length);
+    }
+
+    function getRecordBaseName(record) {
+      const name = safe(record && (record.source_id || record.original_filename || record.id), '');
+      return name.replace(/\.[^.]+$/, '');
+    }
+
+    function getRecordIndex(record) {
+      const index = records.findIndex((item) => item.id === record.id);
+      return index >= 0 ? index + 1 : '-';
+    }
+
+    function getRecordClock(record) {
+      const value = formatDateTime(record && record.created_at);
+      return value === '-' ? '-' : value.slice(11);
+    }
+
+    function getModelSourceText(record) {
+      const model = record && record.vlm && record.vlm.model;
+      if (!model) return getVlmState(record) === 'failed' ? 'VLM 调用失败' : '等待 VLM';
+      if (String(model).includes('5087')) return model;
+      return model === 'pick_verifier_1200_merged' ? 'VLM 5087' : model;
+    }
+
+    function getReasonText(record) {
+      const annotation = record.annotation || {};
+      const reasons = normalizeReasons(annotation.attribution_reason)
+        .map((reason) => reasonLabels[reason] || reason)
+        .filter(Boolean);
+      if (reasons.length) return reasons.join('、');
+      if (annotation.note) return annotation.note;
+      if (record.vlm && record.vlm.error) return record.vlm.error;
+      if ((record.eval_classification || '').includes('正确')) return '无需归因';
+      return '未填写';
+    }
+
+    function getReferenceHint(record) {
+      const paired = findPairedRecord(record);
+      const cameraId = paired && paired.source_metadata && paired.source_metadata.camera_id;
+      return paired ? `cam${safe(cameraId, '0')} 参考图` : '无参考图';
+    }
+
+    function renderRecordCard(record) {
+        const item = document.createElement('div');
+        const vlmState = getVlmState(record);
+        const reattributionBadge = needsReattribution(record) ? '<span class="badge warn">待重新归因</span>' : '';
+        const isBatchSelected = batchSelectedIds.has(record.id);
+        item.className = `record-item rich-card vlm-${vlmState}` + (record.id === selectedId ? ' active' : '') + (isBatchSelected ? ' batch-selected' : '');
+        item.onclick = () => selectRecord(record.id);
+        const category = record.eval_classification || '待人工标注';
+        const annotation = record.annotation || {};
+        const cameraId = record.source_metadata && record.source_metadata.camera_id;
+        const batchCheckHtml = batchMode
+          ? `<input class="batch-check" type="checkbox" data-record-id="${record.id}" ${isBatchSelected ? 'checked' : ''}>`
+          : '';
+        item.innerHTML = `
+          ${batchCheckHtml}
+          <div class="record-image-wrap">
+            <span class="record-camera-chip">cam${escapeHtml(cameraId ?? 1)}</span>
+            <img class="record-thumb" src="${getImageUrl(record)}" alt="${escapeHtml(getRecordDisplayName(record))}">
+          </div>
+          <div class="record-body">
+            <div class="record-field-label">record</div>
+            <div class="record-title">${escapeHtml(getRecordBaseName(record))}</div>
+            <div class="record-meta-line">#${escapeHtml(getRecordIndex(record))} · ${escapeHtml(getRecordClock(record))} · ${escapeHtml(getReferenceHint(record))}</div>
+            <div class="record-detail-grid">
+              <div>
+                <div class="record-field-label">human source</div>
+                <div class="record-field-value">${escapeHtml(labelMap[annotation.human_result] || '待人工标注')}</div>
+                <div class="record-field-sub">人工标注</div>
+              </div>
+              <div>
+                <div class="record-field-label">vlm response</div>
+                <div class="record-field-value">${escapeHtml(getModelResultText(record))}</div>
+                <div class="record-field-sub">${escapeHtml(getModelSourceText(record))}</div>
+              </div>
+              <div>
+                <div class="record-field-label">result</div>
+                <span class="badge ${badgeClass(category)}">${escapeHtml(category)}</span>
+                ${reattributionBadge}
+              </div>
+              <div>
+                <div class="record-field-label">reason</div>
+                <div class="record-field-sub">${escapeHtml(getReasonText(record))}</div>
+              </div>
+            </div>
+            <div class="record-actions">
+              <button class="secondary record-review-button" type="button">确认/修正</button>
+              <button class="danger record-remove-button" type="button">移除标注</button>
+            </div>
+          </div>
+        `;
+        if (batchMode) {
+          const checkbox = item.querySelector('.batch-check');
+          checkbox.onclick = (event) => {
+            event.stopPropagation();
+            toggleBatchSelection(record.id, checkbox.checked);
+          };
+        }
+        item.querySelector('.record-thumb').onclick = (event) => {
+          event.stopPropagation();
+          openImagePreview(record);
+        };
+        item.querySelector('.record-review-button').onclick = (event) => {
+          event.stopPropagation();
+          selectRecord(record.id);
+          $('detailPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        };
+        item.querySelector('.record-remove-button').onclick = (event) => {
+          event.stopPropagation();
+          deleteRecordById(record.id).catch((error) => {
+            $('listMessage').textContent = error.message || String(error);
+            $('listMessage').className = 'message error';
+          });
+        };
+        return item;
+    }
+
+    function renderRecordGroup(group) {
+      const item = document.createElement('div');
+      const active = group.records.some((record) => record.id === selectedId);
+      const isSingle = group.type === 'single' || group.records.length === 1;
+      const evaluationRecord = group.records.find(shouldEvaluateRecord) || group.records[0];
+      const card = renderRecordCard(evaluationRecord);
+      if (active) card.classList.add('active');
+      return card;
+    }
+
+    function renderList() {
+      const list = $('recordList');
+      list.innerHTML = '';
+      const visibleRecords = getVisibleRecords();
+      const groups = groupVisibleRecords(visibleRecords);
+      const totalPages = Math.max(1, Math.ceil(groups.length / RECORD_PAGE_SIZE));
+      if (currentListPage > totalPages) currentListPage = totalPages;
+      if (currentListPage < 1) currentListPage = 1;
+      const pageStart = (currentListPage - 1) * RECORD_PAGE_SIZE;
+      const renderedGroups = groups.slice(pageStart, pageStart + RECORD_PAGE_SIZE);
+      if (!visibleRecords.length) {
+        list.innerHTML = '<div class="muted">当前没有需要显示的图片。</div>';
+        $('prevListPageButton').disabled = true;
+        $('nextListPageButton').disabled = true;
+        $('listPageInfo').textContent = '第 0/0 页';
+        updateQueueControls();
+        return;
+      }
+      for (const group of renderedGroups) {
+        list.appendChild(renderRecordGroup(group));
+      }
+      $('prevListPageButton').disabled = currentListPage <= 1;
+      $('nextListPageButton').disabled = currentListPage >= totalPages;
+      $('listPageInfo').textContent = `第 ${currentListPage}/${totalPages} 页，每页 ${RECORD_PAGE_SIZE} 组，共 ${groups.length} 组`;
+      updateQueueControls();
+    }
+
+    function toggleBatchSelection(recordId, checked) {
+      if (checked) batchSelectedIds.add(recordId);
+      else batchSelectedIds.delete(recordId);
+      updateQueueControls();
+    }
+
+    function resetBatchSelection() {
+      batchSelectedIds.clear();
+      batchMode = false;
+      updateQueueControls();
+    }
+
+    async function deleteBatchSelectedRecords() {
+      if (!batchMode || batchSelectedIds.size === 0) return;
+      if (!confirm(`确认移除选中的 ${batchSelectedIds.size} 条标注及本地图片文件吗？\n\n本地 cam0/cam1 组合会同步删除整组图片。`)) {
+        return;
+      }
+      $('listMessage').textContent = `正在移除 ${batchSelectedIds.size} 条标注...`;
+      $('listMessage').className = 'message';
+      const ids = Array.from(batchSelectedIds);
+      let success = 0;
+      for (const id of ids) {
+        const response = await fetch(`/api/annotations/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        if (response.ok) success += 1;
+      }
+      await loadRecords(false);
+      selectedId = getNextUnlabeledId('') || (records[0] ? records[0].id : '');
+      renderList();
+      renderDetail();
+      batchMode = false;
+      batchSelectedIds.clear();
+      $('listMessage').textContent = `已移除 ${success} 条标注及对应本地图片`;
+      $('listMessage').className = 'message success';
+    }
+
+    function renderReasons(branch, selected) {
+      const list = $('attributionReasonList');
+      const options = reasonOptions[branch] || [];
+      const selectedReasons = normalizeReasons(selected);
+      list.innerHTML = options.length ? '' : '<span class="muted">请先选择归因分支</span>';
+      for (const reason of options) {
+        const label = document.createElement('label');
+        const checkbox = document.createElement('input');
+        const text = document.createElement('span');
+        label.className = 'reason-check';
+        checkbox.type = 'checkbox';
+        checkbox.name = 'attributionReason';
+        checkbox.value = reason;
+        text.textContent = reasonLabels[reason] || reason;
+        checkbox.checked = selectedReasons.includes(reason);
+        checkbox.onchange = () => {
+          formDirty = true;
+          updateReasonHelp();
+        };
+        label.append(checkbox, text);
+        list.appendChild(label);
+      }
+      updateReasonToggleText();
+      updateReasonHelp();
+    }
+
+    function normalizeReasons(value) {
+      if (Array.isArray(value)) return value.filter(Boolean);
+      if (!value) return [];
+      return String(value).split(/[、|]/).map((item) => item.trim()).filter(Boolean);
+    }
+
+    function getSelectedReasons() {
+      return Array.from(document.querySelectorAll('input[name="attributionReason"]:checked'))
+        .map((input) => input.value)
+        .filter(Boolean);
+    }
+
+    function updateReasonToggleText() {
+      const reasons = getSelectedReasons();
+      $('attributionReasonToggle').textContent = reasons.length
+        ? reasons.map((reason) => reasonLabels[reason] || reason).join('、')
+        : '请选择具体原因';
+    }
+
+    function updateReasonHelp() {
+      const reasons = getSelectedReasons();
+      updateReasonToggleText();
+      $('attributionReasonHelp').textContent = reasons.length
+        ? reasons.map((reason) => reasonHelpText[reason] || reason).join(' ')
+        : '选择具体原因后会显示判定口径。';
+    }
+
+    function renderDetail() {
+      const record = records.find((item) => item.id === selectedId);
+      $('emptyDetail').classList.toggle('hidden', Boolean(record));
+      $('detailPanel').classList.toggle('hidden', !record);
+      if (!record) return;
+
+      const annotation = record.annotation || {};
+      const keepUnsavedForm = formDirty && activeDetailRecordId === selectedId;
+      activeDetailRecordId = selectedId;
+      $('previewImage').src = getImageUrl(record);
+      const pairedRecord = findPairedRecord(record);
+      $('pairedPreview').classList.toggle('show', Boolean(pairedRecord));
+      if (pairedRecord) {
+        const cameraId = pairedRecord.source_metadata && pairedRecord.source_metadata.camera_id;
+        const role = shouldEvaluateRecord(pairedRecord) ? '评估图' : '参考图，不统计';
+        $('pairedPreviewTitle').textContent = `同组相机 cam${safe(cameraId, '未知')}（${role}）`;
+        $('pairedPreviewImage').src = getImageUrl(pairedRecord);
+      } else {
+        $('pairedPreviewImage').removeAttribute('src');
+      }
+      $('modelResult').value = modelResultFromVlm(record) || record.model_result || localModelFromSource(record) || annotation.model_result || 'no_result';
+      $('modelResultText').textContent = getModelResultText(record);
+      $('runVlmButton').disabled = !shouldEvaluateRecord(record) && !findPairedRecord(record);
+      if (!keepUnsavedForm) {
+        $('humanResult').value = annotation.human_result === 'not_grasped' ? '' : (annotation.human_result || '');
+        $('sampleValidity').value = annotation.sample_validity || 'valid';
+        $('attributionBranch').value = annotation.attribution_branch || '';
+        renderReasons($('attributionBranch').value, annotation.attribution_reason || '');
+        $('note').value = annotation.note || '';
+      }
+      renderClassification();
+    }
+
+    function renderClassification() {
+      const humanValue = $('humanResult').value;
+      const modelValue = $('modelResult').value || getSelectedModelResult();
+      const category = classify(humanValue, modelValue, $('sampleValidity').value);
+      $('classificationText').textContent = category;
+      $('classificationBadge').textContent = category;
+      $('classificationBadge').className = `badge ${badgeClass(category)}`;
+      document.querySelector('.classification').className = `classification ${classificationClass(category)}`;
+      $('statusMatchText').textContent = getStatusMatchText(humanValue, getSelectedRecord());
+      updateAttributionControls(category);
+      applyAttributionSuggestion(category, humanValue, getSelectedRecord());
+    }
+
+    function isOpenCloseMisjudge(humanValue, record) {
+      const humanStatus = humanStatusCode(humanValue);
+      const modelStatus = modelStatusCode(record);
+      return Boolean(
+        humanStatus &&
+        modelStatus &&
+        humanStatus !== modelStatus &&
+        binaryStatus(humanStatus) === 'not_grasped' &&
+        binaryStatus(modelStatus) === 'not_grasped',
+      );
+    }
+
+    function applyAttributionSuggestion(category, humanValue, record) {
+      if (category !== '误判' || !isOpenCloseMisjudge(humanValue, record)) return;
+      if (!$('attributionBranch').value) {
+        $('attributionBranch').value = '视觉感知';
+        renderReasons('视觉感知', '');
+      }
+    }
+
+    function updateAttributionControls(category) {
+      const enabled = needsAttribution(category);
+      $('attributionPrompt').classList.toggle('show', enabled);
+      $('attributionBranch').disabled = !enabled;
+      $('note').disabled = !enabled;
+      $('attributionReasonToggle').disabled = !enabled;
+      $('attributionBranchField').classList.toggle('disabled', !enabled);
+      $('attributionReasonField').classList.toggle('disabled', !enabled);
+      $('attributionReasonList').classList.toggle('disabled', !enabled);
+      if (!enabled) $('attributionReasonList').classList.remove('open');
+      document.querySelectorAll('input[name="attributionReason"]').forEach((input) => {
+        input.disabled = !enabled;
+      });
+      $('noteField').classList.toggle('disabled', !enabled);
+    }
+
+    function getStatusMatchText(humanValue, record) {
+      if (!humanValue) return '请先选择实测结果。';
+      if (humanValue === 'not_grasped') return '历史标注缺少闭合/打开信息，请重新选择实测结果。';
+      if (humanValue === 'unknown') return '状态一致性：无法判断。';
+      const humanStatus = humanStatusCode(humanValue);
+      const modelStatus = modelStatusCode(record);
+      if (!modelStatus) return '状态一致性：等待模型判断状态。';
+      if (humanStatus === modelStatus) return '状态一致性：完全一致。';
+      if (binaryStatus(humanStatus) && binaryStatus(humanStatus) === binaryStatus(modelStatus)) {
+        return '状态一致性：夹住判断一致，但开合状态误判。';
+      }
+      return '状态一致性：夹住判断不一致。';
+    }
+
+    function renderSummary(summary) {
+      $('mTotal').textContent = safe(summary.total);
+      $('mCoverage').textContent = pct(summary.labelCoverage);
+      $('mAccuracy').textContent = pct(summary.accuracy);
+      $('mMissRate').textContent = pct(summary.missRate);
+      $('cTp').textContent = summary.categories['正确识别夹住'] || 0;
+      $('cFn').textContent = summary.categories['漏判'] || 0;
+      $('cFp').textContent = summary.categories['误判'] || 0;
+      $('cTn').textContent = summary.categories['正确识别未夹住'] || 0;
+
+      const attributionEntries = Object.entries(summary.attribution || {});
+      const attribution = attributionEntries.filter(([name]) => reasonOptions[name]);
+      const removedAttributionCount = attributionEntries
+        .filter(([name]) => !reasonOptions[name])
+        .reduce((total, [, count]) => total + count, 0);
+      if (removedAttributionCount) {
+        attribution.push(['待重新归因', removedAttributionCount]);
+      }
+      $('attributionRows').innerHTML = attribution.length
+        ? attribution.map(([name, count]) => `<tr><td>${name}</td><td><strong>${count}</strong></td></tr>`).join('')
+        : '<tr><td colspan="2" class="muted">暂无归因数据</td></tr>';
+
+      const categories = summary.categories || {};
+      const sideRows = [
+        ['待人工标注', categories['待人工标注'] || 0],
+        ['无法判断', categories['无法判断'] || 0],
+        ['VLM 调用失败', categories['VLM 调用失败'] || 0],
+        ['无效样本', categories['无效样本'] || 0],
+        ['参考图像', summary.referenceTotal || 0],
+      ];
+      $('sideRows').innerHTML = sideRows
+        .map(([name, count]) => `<tr><td>${name}</td><td><strong>${count}</strong></td></tr>`)
+        .join('');
+    }
+
+    async function loadRecords(keepSelection = true) {
+      $('listMessage').textContent = '正在读取本地图片记录...';
+      const response = await fetch(`/api/records?limit=${RECORD_FETCH_LIMIT}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || '读取失败');
+      records = sortRecordsNewest(data.items || []);
+      resetListPage();
+      const existingIds = new Set(records.map((item) => item.id));
+      Array.from(batchSelectedIds).forEach((id) => {
+        if (!existingIds.has(id)) batchSelectedIds.delete(id);
+      });
+      const visibleRecords = getVisibleRecords();
+      if (!keepSelection || !records.some((item) => item.id === selectedId) || !visibleRecords.some((item) => item.id === selectedId)) {
+        const hasActiveListFilter = Boolean(selectedDate || resultFilter);
+        selectedId = (visibleRecords[0] ? visibleRecords[0].id : '') || (hasActiveListFilter ? '' : getNextUnlabeledId('') || (records[0] ? records[0].id : ''));
+        formDirty = false;
+      }
+      renderList();
+      renderDetail();
+      renderSummary(data.summary || {});
+      updateListMessage();
+    }
+
+    function selectRecord(id) {
+      if (id !== selectedId) formDirty = false;
+      selectedId = id;
+      focusListPageForRecord(id);
+      renderList();
+      renderDetail();
+      $('saveMessage').textContent = '';
+      $('vlmMessage').textContent = '';
+    }
+
+    async function startAutoVlm() {
+      $('autoVlmButton').disabled = true;
+      $('autoVlmMessage').textContent = '正在启动自动 VLM 队列...';
+      $('autoVlmMessage').className = 'message';
+      const response = await fetch('/api/vlm/auto-start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limit: RECORD_FETCH_LIMIT, force: true }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        $('autoVlmButton').disabled = false;
+        $('autoVlmMessage').textContent = data.message || '自动 VLM 启动失败';
+        $('autoVlmMessage').className = 'message error';
+        return;
+      }
+      pollAutoVlm();
+    }
+
+    async function startMissingAutoVlm() {
+      $('autoVlmButton').disabled = true;
+      $('autoVlmMessage').textContent = '正在检查是否需要补齐 VLM...';
+      $('autoVlmMessage').className = 'message';
+      const response = await fetch('/api/vlm/auto-start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limit: RECORD_FETCH_LIMIT, force: false }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        $('autoVlmButton').disabled = false;
+        $('autoVlmMessage').textContent = data.message || '自动 VLM 启动失败';
+        $('autoVlmMessage').className = 'message error';
+        return;
+      }
+      pollAutoVlm();
+    }
+
+    async function pollAutoVlm() {
+      clearTimeout(autoVlmTimer);
+      const response = await fetch('/api/vlm/auto-status');
+      const data = await response.json();
+      const job = data.job || {};
+      const current = job.current ? `，当前：${job.current}` : '';
+      $('autoVlmMessage').textContent = `${job.message || '自动 VLM'}：${job.done || 0}/${job.total || 0}，成功 ${job.success || 0}，失败 ${job.failed || 0}${current}`;
+      $('autoVlmMessage').className = job.running && job.failed ? 'message error' : 'message success';
+      $('autoVlmButton').disabled = Boolean(job.running);
+      await loadRecords(true);
+      if (job.running) {
+        autoVlmTimer = setTimeout(pollAutoVlm, 2000);
+      }
+    }
+
+    async function runSelectedVlm() {
+      const current = getSelectedRecord();
+      if (!current) return;
+      const target = shouldEvaluateRecord(current)
+        ? current
+        : findPairedRecord(current);
+      if (!target || !shouldEvaluateRecord(target)) {
+        $('vlmMessage').textContent = '当前图片是参考图，且没有找到同组 cam1 评估图。';
+        $('vlmMessage').className = 'message error';
+        return;
+      }
+
+      $('runVlmButton').disabled = true;
+      $('vlmMessage').textContent = `人工调用中：cam${safe(target.source_metadata && target.source_metadata.camera_id, '未知')}...`;
+      $('vlmMessage').className = 'message';
+      try {
+        const response = await fetch(`/api/vlm/${encodeURIComponent(target.id)}`, { method: 'POST' });
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+          throw new Error((data.vlm && data.vlm.error) || data.message || '模型推理失败');
+        }
+        $('vlmMessage').textContent = '人工调用完成，模型结果已更新';
+        $('vlmMessage').className = 'message success';
+        formDirty = false;
+        selectedId = target.id;
+        await loadRecords(true);
+      } catch (error) {
+        $('vlmMessage').textContent = error.message || String(error);
+        $('vlmMessage').className = 'message error';
+      } finally {
+        $('runVlmButton').disabled = false;
+        renderDetail();
+      }
+    }
+
+    async function saveAnnotation(event) {
+      event.preventDefault();
+      if (!selectedId) return;
+      const category = classify($('humanResult').value, $('modelResult').value || getSelectedModelResult(), $('sampleValidity').value);
+      const shouldSaveAttribution = needsAttribution(category);
+      const selectedReasons = getSelectedReasons();
+      if (shouldSaveAttribution && !$('attributionBranch').value) {
+        $('saveMessage').textContent = '请选择归因分支';
+        $('saveMessage').className = 'message error';
+        return;
+      }
+      if (shouldSaveAttribution && selectedReasons.length === 0) {
+        $('saveMessage').textContent = '请选择具体原因';
+        $('saveMessage').className = 'message error';
+        $('attributionReasonList').classList.add('open');
+        return;
+      }
+      const body = {
+        human_result: $('humanResult').value,
+        model_result: $('modelResult').value || getSelectedModelResult(),
+        sample_validity: $('sampleValidity').value,
+        attribution_branch: shouldSaveAttribution ? $('attributionBranch').value : '',
+        attribution_reason: shouldSaveAttribution ? selectedReasons.join('、') : '',
+        note: shouldSaveAttribution ? $('note').value : '',
+      };
+      $('saveMessage').textContent = '正在保存...';
+      $('saveMessage').className = 'message';
+      let response;
+      let data = {};
+      try {
+        response = await fetch(`/api/annotations/${encodeURIComponent(selectedId)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        data = await response.json();
+      } catch (error) {
+        $('saveMessage').textContent = `保存失败：${error.message || '网络或接口异常'}`;
+        $('saveMessage').className = 'message error';
+        return;
+      }
+      if (!response.ok) {
+        $('saveMessage').textContent = data.message || '保存失败';
+        $('saveMessage').className = 'message error';
+        return;
+      }
+      $('saveMessage').textContent = '已保存';
+      $('saveMessage').className = 'message success';
+      formDirty = false;
+      await loadRecords(true);
+      if ($('autoNext').checked) {
+        const nextId = getNextUnlabeledId(selectedId);
+        if (nextId && nextId !== selectedId) {
+          selectRecord(nextId);
+          $('saveMessage').textContent = '已保存，已跳到下一张未标注';
+        } else {
+          $('saveMessage').textContent = '已保存，当前没有剩余未标注图片';
+        }
+      }
+    }
+
+    async function deleteRecordById(targetId) {
+      if (!targetId) return;
+      const record = records.find((item) => item.id === targetId);
+      const name = record ? (record.source_id || record.original_filename || record.id) : targetId;
+      if (!confirm(`确认移除该标注及本地图片文件吗？\n\n${name}\n\n如果它是本地 cam0/cam1 组合，会同时删除这一组本地图片文件。`)) {
+        return;
+      }
+
+      $('vlmMessage').textContent = '正在移除标注和本地图片...';
+      $('vlmMessage').className = 'message';
+      const response = await fetch(`/api/annotations/${encodeURIComponent(targetId)}`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        $('vlmMessage').textContent = data.message || '移除失败';
+        $('vlmMessage').className = 'message error';
+        return;
+      }
+
+      await loadRecords(false);
+      if (selectedId === targetId) {
+        selectedId = getNextUnlabeledId('') || (records[0] ? records[0].id : '');
+        renderList();
+        renderDetail();
+      }
+      const deletedFiles = Array.isArray(data.deleted_files) ? data.deleted_files.length : 0;
+      $('listMessage').textContent = `已移除标注和本地图片${deletedFiles ? `（删除 ${deletedFiles} 个文件）` : ''}`;
+      $('listMessage').className = 'message success';
+    }
+
+    async function deleteSelectedRecord() {
+      if (!selectedId) return;
+      await deleteRecordById(selectedId);
+    }
+
+    $('refreshButton').onclick = () => {
+      loadRecords(true)
+        .then(() => startAutoVlm())
+        .catch((error) => {
+          $('listMessage').textContent = error.message || String(error);
+          $('listMessage').className = 'message error';
+        });
+    };
+    $('autoVlmButton').onclick = () => {
+      startAutoVlm().catch((error) => {
+        $('autoVlmButton').disabled = false;
+        $('autoVlmMessage').textContent = error.message || String(error);
+        $('autoVlmMessage').className = 'message error';
+      });
+    };
+    $('runVlmButton').onclick = () => {
+      runSelectedVlm();
+    };
+    $('nextUnlabeledTopButton').onclick = () => {
+      const nextId = getNextUnlabeledId(selectedId);
+      if (nextId) selectRecord(nextId);
+    };
+    $('prevRecordButton').onclick = () => {
+      const prevId = getPrevVisibleRecordId(selectedId);
+      if (prevId) selectRecord(prevId);
+    };
+    $('nextRecordButton').onclick = () => {
+      const nextId = getNextVisibleRecordId(selectedId);
+      if (nextId) selectRecord(nextId);
+    };
+    $('showAllButton').onclick = () => {
+      listMode = 'all';
+      resultFilter = '';
+      $('resultFilter').value = '';
+      resetListPage();
+      selectFirstVisibleRecordIfNeeded();
+      renderList();
+      renderDetail();
+      updateListMessage();
+    };
+    $('toggleBatchButton').onclick = () => {
+      batchMode = !batchMode;
+      if (!batchMode) batchSelectedIds.clear();
+      renderList();
+    };
+    $('batchDeleteButton').onclick = () => {
+      deleteBatchSelectedRecords().catch((error) => {
+        $('listMessage').textContent = error.message || String(error);
+        $('listMessage').className = 'message error';
+      });
+    };
+    $('prevListPageButton').onclick = () => {
+      currentListPage -= 1;
+      renderList();
+      updateListMessage();
+    };
+    $('nextListPageButton').onclick = () => {
+      currentListPage += 1;
+      renderList();
+      updateListMessage();
+    };
+    $('resultFilter').onchange = () => {
+      resultFilter = $('resultFilter').value;
+      listMode = 'all';
+      resetListPage();
+      if (resultFilter === '__unlabeled') {
+        if (selectedId && records.find((record) => record.id === selectedId && isAnnotated(record))) {
+          selectedId = getNextUnlabeledId(selectedId) || selectedId;
+          renderDetail();
+        }
+      }
+      batchSelectedIds.clear();
+      selectFirstVisibleRecordIfNeeded();
+      renderList();
+      renderDetail();
+      updateListMessage();
+    };
+    $('dateFilter').onchange = () => {
+      selectedDate = $('dateFilter').value;
+      resetListPage();
+      batchSelectedIds.clear();
+      selectFirstVisibleRecordIfNeeded();
+      renderList();
+      renderDetail();
+      updateListMessage();
+    };
+    $('prevDateButton').onclick = () => {
+      const dates = getAvailableDateKeys();
+      const currentIndex = dates.indexOf(selectedDate);
+      if (currentIndex > 0) {
+        selectedDate = dates[currentIndex - 1];
+        $('dateFilter').value = selectedDate;
+        resetListPage();
+        batchSelectedIds.clear();
+        selectFirstVisibleRecordIfNeeded();
+        renderList();
+        renderDetail();
+        updateListMessage();
+      }
+    };
+    $('nextDateButton').onclick = () => {
+      const dates = getAvailableDateKeys();
+      const currentIndex = dates.indexOf(selectedDate);
+      if (currentIndex >= 0 && currentIndex < dates.length - 1) {
+        selectedDate = dates[currentIndex + 1];
+        $('dateFilter').value = selectedDate;
+        resetListPage();
+        batchSelectedIds.clear();
+        selectFirstVisibleRecordIfNeeded();
+        renderList();
+        renderDetail();
+        updateListMessage();
+      }
+    };
+    $('closeImagePreviewButton').onclick = closeImagePreview;
+    $('imagePreviewModal').onclick = (event) => {
+      if (event.target === $('imagePreviewModal')) closeImagePreview();
+    };
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && $('imagePreviewModal').classList.contains('show')) {
+        closeImagePreview();
+      }
+    });
+    $('openRealtimeButton').onclick = () => {
+      window.open('/realtime/', '_blank', 'noreferrer');
+    };
+    function formatClock(date = new Date()) {
+      return new Intl.DateTimeFormat('zh-CN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      }).format(date);
+    }
+    function refreshRealtimeCamera(camera) {
+      return new Promise((resolve) => {
+        const image = new Image();
+        const url = `/api/realtime-proxy/frame?camera=${camera}&t=${Date.now()}`;
+        image.onload = () => {
+          $(`realtimeImageCam${camera}`).src = url;
+          $(`realtimeCam${camera}Time`).textContent = formatClock();
+          resolve(true);
+        };
+        image.onerror = () => resolve(false);
+        image.src = url;
+      });
+    }
+    function refreshRealtimeImage() {
+      Promise.all([refreshRealtimeCamera(0), refreshRealtimeCamera(1)]).then((results) => {
+        const okCount = results.filter(Boolean).length;
+        $('realtimeRefreshText').textContent = okCount === 2 ? '实时刷新中' : `刷新异常 ${okCount}/2`;
+      });
+    }
+    $('refreshRealtimeButton').onclick = () => {
+      refreshRealtimeImage();
+    };
+    $('saveRealtimeToListButton').onclick = async () => {
+      const btn = $('saveRealtimeToListButton');
+      btn.disabled = true;
+      const oldText = btn.textContent;
+      btn.textContent = '保存中...';
+      $('listMessage').textContent = '正在调用实时画面保存...';
+      $('listMessage').className = 'message';
+      try {
+        const response = await fetch('/api/realtime/save', { method: 'POST' });
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+          throw new Error(data.message || '保存失败');
+        }
+        $('listMessage').textContent = data.message || '实时画面已保存，正在刷新图片记录...';
+        $('listMessage').className = 'message success';
+        const newRecord = (data.local_snapshots || []).find(shouldEvaluateRecord) || (data.local_snapshots || [])[0];
+        if (newRecord && newRecord.id) {
+          selectedId = newRecord.id;
+          listMode = 'all';
+          resultFilter = '';
+          selectedDate = '';
+          $('resultFilter').value = '';
+          $('dateFilter').value = '';
+        }
+        await loadRecords(true);
+        if (newRecord && newRecord.id) {
+          $('listMessage').textContent = '实时画面已保存到图片记录最前面，cam1 正在自动调用 VLM';
+        }
+      } catch (error) {
+        $('listMessage').textContent = error.message || String(error);
+        $('listMessage').className = 'message error';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = oldText;
+      }
+    };
+    $('uploadToListButton').onclick = async () => {
+      const input = $('localUploadInput');
+      const file = input.files && input.files[0];
+      if (!file) {
+        $('listMessage').textContent = '请先选择要上传的图片';
+        $('listMessage').className = 'message error';
+        return;
+      }
+      const btn = $('uploadToListButton');
+      btn.disabled = true;
+      const oldText = btn.textContent;
+      btn.textContent = '上传中...';
+      try {
+        const base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || ''));
+          reader.onerror = () => reject(new Error('读取图片失败'));
+          reader.readAsDataURL(file);
+        });
+        const response = await fetch('/api/upload-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filename: file.name,
+            content_type: file.type || 'image/jpeg',
+            image_base64: base64,
+            camera_label: 'manual_upload',
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+          throw new Error(data.message || '上传失败');
+        }
+        $('listMessage').textContent = data.message || '上传成功';
+        $('listMessage').className = 'message success';
+        input.value = '';
+        await loadRecords(true);
+      } catch (error) {
+        $('listMessage').textContent = error.message || String(error);
+        $('listMessage').className = 'message error';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = oldText;
+      }
+    };
+    $('deleteRecordButton').onclick = () => {
+      deleteSelectedRecord().catch((error) => {
+        $('vlmMessage').textContent = error.message || String(error);
+        $('vlmMessage').className = 'message error';
+      });
+    };
+    $('annotationForm').onsubmit = saveAnnotation;
+    for (const id of ['humanResult', 'sampleValidity']) {
+      $(id).onchange = () => {
+        formDirty = true;
+        renderClassification();
+      };
+    }
+    $('attributionBranch').onchange = () => {
+      formDirty = true;
+      const branch = $('attributionBranch').value;
+      renderReasons(branch, '');
+      renderClassification();
+    };
+    $('attributionReasonToggle').onclick = () => {
+      if ($('attributionReasonToggle').disabled) return;
+      $('attributionReasonList').classList.toggle('open');
+    };
+    document.addEventListener('click', (event) => {
+      if (!$('attributionReasonMultiSelect').contains(event.target)) {
+        $('attributionReasonList').classList.remove('open');
+      }
+    });
+    $('note').oninput = () => {
+      formDirty = true;
+    };
+
+    loadRecords(false).then(() => {
+      if ($('autoVlmOnLoad').checked) {
+        return startMissingAutoVlm();
+      }
+      return null;
+    }).catch((error) => {
+      $('listMessage').textContent = error.message || String(error);
+      $('listMessage').className = 'message error';
+    });
+    refreshRealtimeImage();
+    setInterval(refreshRealtimeImage, 2000);
+  </script>
+</body>
+</html>
