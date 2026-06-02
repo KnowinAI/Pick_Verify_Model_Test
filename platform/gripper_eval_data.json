@@ -59831,7 +59831,7 @@
         "predicted_status": null,
         "review_path": ""
       },
-      "updated_at": "2026-06-01T08:02:55.488Z",
+      "updated_at": "2026-06-01T13:00:12.795Z",
       "vlm": {
         "status": "completed",
         "model": "pick_verifier_1200_merged",
@@ -59871,7 +59871,8 @@
         "attribution_branch": "视觉感知",
         "attribution_reason": "张开未夹住，物品在夹爪中间",
         "note": "",
-        "updated_at": "2026-06-01T08:02:55.468Z"
+        "updated_at": "2026-06-01T13:00:12.786Z",
+        "object_tag": "形状细长"
       }
     },
     "local_realtime_cam0_20260601075614_nnm44v": {
@@ -60898,7 +60899,7 @@
         "predicted_status": null,
         "review_path": ""
       },
-      "updated_at": "2026-06-01T08:14:04.171Z",
+      "updated_at": "2026-06-01T13:01:23.314Z",
       "vlm": {
         "status": "completed",
         "model": "pick_verifier_1200_merged",
@@ -60938,7 +60939,8 @@
         "attribution_branch": "视觉感知",
         "attribution_reason": "张开未夹住，物品在夹爪中间",
         "note": "",
-        "updated_at": "2026-06-01T08:14:04.148Z"
+        "updated_at": "2026-06-01T13:01:23.304Z",
+        "object_tag": "形状细长"
       }
     },
     "local_realtime_cam0_20260601080728_gqho7y": {
@@ -61092,7 +61094,7 @@
         "predicted_status": null,
         "review_path": ""
       },
-      "updated_at": "2026-06-01T08:13:46.314Z",
+      "updated_at": "2026-06-01T13:01:16.292Z",
       "vlm": {
         "status": "completed",
         "model": "pick_verifier_1200_merged",
@@ -61132,7 +61134,8 @@
         "attribution_branch": "视觉感知",
         "attribution_reason": "张开未夹住，物品在夹爪中间",
         "note": "",
-        "updated_at": "2026-06-01T08:13:46.300Z"
+        "updated_at": "2026-06-01T13:01:16.283Z",
+        "object_tag": "形状细长"
       }
     },
     "local_realtime_cam0_20260601080751_dx34ad": {
@@ -62256,7 +62259,7 @@
         "predicted_status": null,
         "review_path": ""
       },
-      "updated_at": "2026-06-01T08:53:08.634Z",
+      "updated_at": "2026-06-01T13:00:42.347Z",
       "vlm": {
         "status": "completed",
         "model": "pick_verifier_1200_merged",
@@ -62288,6 +62291,16 @@
           }
         },
         "updated_at": "2026-06-01T08:53:08.616Z"
+      },
+      "annotation": {
+        "human_result": "open_not_grasped",
+        "model_result": "not_grasped",
+        "sample_validity": "valid",
+        "attribution_branch": "",
+        "attribution_reason": "",
+        "note": "",
+        "object_tag": "",
+        "updated_at": "2026-06-01T13:00:42.337Z"
       }
     },
     "local_realtime_cam0_20260601085316_1m9wau": {
@@ -63324,7 +63337,7 @@
         "predicted_status": null,
         "review_path": ""
       },
-      "updated_at": "2026-06-01T08:54:32.973Z",
+      "updated_at": "2026-06-01T13:00:36.558Z",
       "vlm": {
         "status": "completed",
         "model": "pick_verifier_1200_merged",
@@ -63356,6 +63369,16 @@
           }
         },
         "updated_at": "2026-06-01T08:54:32.957Z"
+      },
+      "annotation": {
+        "human_result": "closed_not_grasped",
+        "model_result": "not_grasped",
+        "sample_validity": "valid",
+        "attribution_branch": "视觉感知",
+        "attribution_reason": "开关漏判",
+        "note": "",
+        "object_tag": "形状细长",
+        "updated_at": "2026-06-01T13:00:36.549Z"
       }
     },
     "local_realtime_cam0_20260601085436_7wara7": {
@@ -63412,7 +63435,7 @@
         "predicted_status": null,
         "review_path": ""
       },
-      "updated_at": "2026-06-01T11:11:49.180Z",
+      "updated_at": "2026-06-01T13:01:02.740Z",
       "vlm": {
         "status": "completed",
         "model": "pick_verifier_1200_merged",
@@ -63452,8 +63475,8 @@
         "attribution_branch": "视觉感知",
         "attribution_reason": "闭合未夹住，物品与夹爪视觉重叠",
         "note": "",
-        "object_tag": "",
-        "updated_at": "2026-06-01T11:11:49.170Z"
+        "object_tag": "钥匙扣",
+        "updated_at": "2026-06-01T13:01:02.730Z"
       }
     },
     "local_realtime_cam0_20260601085440_224l21": {
@@ -64287,7 +64310,7 @@
         "predicted_status": null,
         "review_path": ""
       },
-      "updated_at": "2026-06-01T11:25:13.948Z",
+      "updated_at": "2026-06-02T02:40:27.272Z",
       "vlm": {
         "status": "completed",
         "model": "pick_verifier_1200_merged",
@@ -64327,7 +64350,7 @@
         "attribution_branch": "视觉感知",
         "attribution_reason": "张开未夹住，物品在夹爪中间",
         "note": "",
-        "updated_at": "2026-06-01T11:25:13.938Z",
+        "updated_at": "2026-06-02T02:40:27.259Z",
         "object_tag": "钥匙扣"
       }
     }
