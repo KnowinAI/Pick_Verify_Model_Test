@@ -1,5 +1,6 @@
 const fs = require('fs');
 const http = require('http');
+const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { importLegacyPlatform } = require('../scripts/import_legacy_lib');
@@ -8,7 +9,13 @@ const HOST = '0.0.0.0';
 const PORT = Number(process.env.PORT || 5034);
 const APP_BASE_URL = process.env.APP_BASE_URL || `http://127.0.0.1:${PORT}`;
 const SOURCE_BASE_URL = process.env.SOURCE_BASE_URL || 'http://101.132.143.105:5022';
-const REALTIME_BASE_URL = process.env.REALTIME_BASE_URL || 'http://192.168.78.168:5033';
+const DEFAULT_REALTIME_BASE_URLS = [
+  'http://127.0.0.1:5033',
+  'http://192.168.78.168:5033',
+  'http://192.168.78.168:9002',
+  'http://192.168.127.10:9002',
+];
+const REALTIME_FETCH_TIMEOUT_MS = Number(process.env.REALTIME_FETCH_TIMEOUT_MS || 1500);
 const USE_SOURCE_5022 = process.env.USE_SOURCE_5022 === '1';
 const VLM_ENDPOINT = process.env.VLM_CHAT_COMPLETIONS_URL
   || process.env.VLM_ENDPOINT
@@ -26,6 +33,24 @@ const IMAGE_CONTENT_TYPES = {
   '.webp': 'image/webp',
   '.gif': 'image/gif',
 };
+
+function parseRealtimeBaseUrls(value) {
+  if (!value) return [];
+  return String(value)
+    .split(/[,\s;]+/)
+    .map((item) => item.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+}
+
+function getRealtimeBaseUrls() {
+  return Array.from(new Set([
+    ...parseRealtimeBaseUrls(process.env.REALTIME_BASE_URLS),
+    ...parseRealtimeBaseUrls(process.env.REALTIME_BASE_URL),
+    ...DEFAULT_REALTIME_BASE_URLS,
+  ]));
+}
+
+const REALTIME_BASE_URLS = getRealtimeBaseUrls();
 
 const PROMPT = `判断机器人夹爪的状态。只能从下面四个中文选项中选择一个输出：
 闭合，已夹住：夹爪闭合，并且当前夹住了物体。
@@ -697,23 +722,106 @@ async function runVlm(reviewId) {
   };
 }
 
+function getUrlPort(url) {
+  if (url.port) return url.port;
+  if (url.protocol === 'https:') return '443';
+  if (url.protocol === 'http:') return '80';
+  return '';
+}
+
+function getLocalHostnames() {
+  const hosts = new Set(['0.0.0.0', '127.0.0.1', 'localhost', '::', '::1']);
+  for (const addresses of Object.values(os.networkInterfaces())) {
+    for (const address of addresses || []) {
+      if (address?.address) hosts.add(address.address);
+    }
+  }
+  return hosts;
+}
+
+const LOCAL_HOSTNAMES = getLocalHostnames();
+
+function isCurrentServerBase(baseUrl) {
+  try {
+    const target = new URL(baseUrl);
+    const app = new URL(APP_BASE_URL);
+    return getUrlPort(target) === String(PORT)
+      && (
+        LOCAL_HOSTNAMES.has(target.hostname)
+        || (target.hostname === app.hostname && getUrlPort(target) === getUrlPort(app))
+      );
+  } catch {
+    return false;
+  }
+}
+
+function makeRealtimeFrameUrls(baseUrl, cam) {
+  if (!baseUrl || isCurrentServerBase(baseUrl)) return [];
+  let parsed;
+  try {
+    parsed = new URL(baseUrl);
+  } catch {
+    return [];
+  }
+  const normalized = `${parsed.origin}${parsed.pathname.replace(/\/+$/, '')}`;
+  const camera = encodeURIComponent(cam);
+  const tick = Date.now();
+  const proxyUrl = `${normalized}/api/realtime-proxy/frame?camera=${camera}&t=${tick}`;
+  const snapshotUrl = `${normalized}/snapshot?cam=${camera}&t=${tick}`;
+  const frameUrl = `${normalized}/frame?camera=${camera}&t=${tick}`;
+  const port = getUrlPort(parsed);
+  if (port === '5033') return [proxyUrl];
+  if (port === '9002') return [snapshotUrl, frameUrl];
+  return [proxyUrl, snapshotUrl, frameUrl];
+}
+
+async function fetchWithRealtimeTimeout(targetUrl) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REALTIME_FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(targetUrl, { signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function formatRealtimeFetchError(error) {
+  return error.name === 'AbortError'
+    ? `超时 ${REALTIME_FETCH_TIMEOUT_MS}ms`
+    : error.message || String(error);
+}
+
 async function fetchRealtimeImage(cam) {
-  const candidates = [
-    `${REALTIME_BASE_URL}/api/realtime-proxy/frame?camera=${encodeURIComponent(cam)}&t=${Date.now()}`,
-    `${REALTIME_BASE_URL}/snapshot?cam=${encodeURIComponent(cam)}&t=${Date.now()}`,
-    `${REALTIME_BASE_URL}/frame?camera=${encodeURIComponent(cam)}&t=${Date.now()}`,
-  ];
+  const candidates = REALTIME_BASE_URLS.flatMap((baseUrl) => makeRealtimeFrameUrls(baseUrl, cam));
   let lastError = '';
   for (const imageUrl of candidates) {
     try {
-      const response = await fetch(imageUrl);
+      const response = await fetchWithRealtimeTimeout(imageUrl);
       if (response.ok) return response;
-      lastError = `HTTP ${response.status}`;
+      lastError = `${imageUrl} HTTP ${response.status}`;
     } catch (error) {
-      lastError = error.message || String(error);
+      lastError = `${imageUrl} ${formatRealtimeFetchError(error)}`;
     }
   }
   throw new Error(`cam${cam} 抓图失败：${lastError || '无可用实时图像接口'}`);
+}
+
+async function fetchRealtimePage() {
+  let lastError = '';
+  for (const baseUrl of REALTIME_BASE_URLS) {
+    if (!baseUrl || isCurrentServerBase(baseUrl)) continue;
+    const normalized = baseUrl.replace(/\/+$/, '');
+    for (const pageUrl of [`${normalized}/realtime/`, `${normalized}/`]) {
+      try {
+        const response = await fetchWithRealtimeTimeout(pageUrl);
+        if (response.ok) return response;
+        lastError = `${pageUrl} HTTP ${response.status}`;
+      } catch (error) {
+        lastError = `${pageUrl} ${formatRealtimeFetchError(error)}`;
+      }
+    }
+  }
+  throw new Error(lastError || '无可用实时页面');
 }
 
 async function captureRealtimeSnapshot(cam, captureGroupId) {
@@ -795,13 +903,18 @@ function triggerVlmInBackground(reviewId) {
 
 function upsertLocalRecord(reviewId, patch) {
   const data = readData();
+  upsertLocalRecordInData(data, reviewId, patch);
+  writeData(data);
+  return data.records[reviewId];
+}
+
+function upsertLocalRecordInData(data, reviewId, patch) {
   const current = data.records[reviewId] || {};
   data.records[reviewId] = {
     ...current,
     ...patch,
     updated_at: new Date().toISOString(),
   };
-  writeData(data);
   return data.records[reviewId];
 }
 
@@ -1105,7 +1218,7 @@ async function handleApi(req, res, url) {
         }
       }
       if (!snapshots.length) {
-        sendJson(res, 502, { ok: false, message: '抓取实时画面失败，请检查 9002 服务' });
+        sendJson(res, 502, { ok: false, message: '抓取实时画面失败，请检查实时服务或代理地址' });
         return;
       }
       linkRealtimeGroup(snapshots);
@@ -1241,7 +1354,21 @@ async function handleApi(req, res, url) {
   if (req.method === 'POST' && url.pathname.startsWith('/api/annotations/')) {
     const reviewId = decodeURIComponent(url.pathname.split('/').pop());
     const body = JSON.parse(await readBody(req) || '{}');
-    const existingAnnotation = (readData().records[reviewId] || {}).annotation || {};
+    const data = readData();
+    data.records = data.records || {};
+    const current = data.records[reviewId] || {};
+    const requestHasVersion = Object.prototype.hasOwnProperty.call(body, 'base_updated_at');
+    const baseUpdatedAt = body.base_updated_at || '';
+    const currentUpdatedAt = current.updated_at || '';
+    if (!body.force && requestHasVersion && baseUpdatedAt !== currentUpdatedAt) {
+      sendJson(res, 409, {
+        ok: false,
+        message: '该图片已被其他人更新，请刷新后重试，或确认覆盖最新标注。',
+        record: current,
+      });
+      return;
+    }
+    const existingAnnotation = current.annotation || {};
     const annotation = {
       ...existingAnnotation,
       human_result: body.human_result || '',
@@ -1253,7 +1380,8 @@ async function handleApi(req, res, url) {
       object_tag: String(body.object_tag || '').trim().slice(0, 32),
       updated_at: new Date().toISOString(),
     };
-    const local = upsertLocalRecord(reviewId, { annotation });
+    const local = upsertLocalRecordInData(data, reviewId, { annotation });
+    writeData(data);
     sendJson(res, 200, { ok: true, record: local });
     return;
   }
@@ -1285,14 +1413,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (url.pathname === '/realtime' || url.pathname === '/realtime/') {
-      let upstream = await fetch(`${REALTIME_BASE_URL}/realtime/`);
-      if (!upstream.ok) {
-        upstream = await fetch(`${REALTIME_BASE_URL}/`);
-      }
-      if (!upstream.ok) {
-        sendJson(res, upstream.status, { ok: false, message: `realtime page failed: HTTP ${upstream.status}` });
-        return;
-      }
+      const upstream = await fetchRealtimePage();
       const html = (await upstream.text())
         .replaceAll('"/api/realtime-proxy/frame?camera=', '"/api/realtime-proxy/frame?camera=')
         .replaceAll('"/frame?camera=', '"/api/realtime-proxy/frame?camera=');

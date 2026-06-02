@@ -8,13 +8,31 @@
 npm start
 ```
 
-也可以双击 `start_5034.bat`。
+部署到能直连板子的同事电脑时，推荐双击 `start_lan_5034.bat`。
 
-打开：
+本机调试可打开：
 
 ```text
 http://127.0.0.1:5034/
 ```
+
+局域网部署时，`start_lan_5034.bat` 会自动打开并打印可分享地址，例如：
+
+```text
+http://192.168.x.x:5034/
+```
+
+## 局域网多人访问
+
+部署到能直连板子的同事电脑时，推荐双击 `start_lan_5034.bat`，它会把实时画面源固定为板端 `http://192.168.127.10:9002`，并继续使用 `5034` 端口。
+
+同事电脑需要放行 Windows 防火墙入站 TCP `5034`。其他同事不要使用 `127.0.0.1`，统一访问：
+
+```text
+http://同事电脑IPv4:5034/
+```
+
+多人可以同时标注。若两个人同时编辑同一张图片，后保存的人会收到冲突提示，可刷新查看最新标注，或确认覆盖。
 
 ## 配置
 
@@ -22,7 +40,7 @@ http://127.0.0.1:5034/
 
 ```powershell
 $env:PORT="5034"
-$env:REALTIME_BASE_URL="http://192.168.78.168:5033"
+$env:REALTIME_BASE_URLS="http://192.168.127.10:9002"
 $env:VLM_CHAT_COMPLETIONS_URL="http://101.132.143.105:5087/v1/chat/completions"
 $env:VLM_MODEL="pick_verifier_1200_merged"
 npm start

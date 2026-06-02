@@ -1063,7 +1063,7 @@
       <div class="toolbar" style="justify-content:space-between;">
         <div>
           <h2>实时画面</h2>
-          <p class="muted">集成来源由服务端 REALTIME_BASE_URL 配置，默认读取 192.168.78.168:5033。</p>
+          <p class="muted">集成来源由服务端 REALTIME_BASE_URLS/REALTIME_BASE_URL 配置，默认尝试本机 5033、同事代理 5033/9002 和板端 9002。</p>
         </div>
         <div class="toolbar">
           <button id="saveRealtimeToListButton" type="button" class="secondary">保存实时画面到图片记录</button>
@@ -2886,6 +2886,8 @@
     async function saveAnnotation(event) {
       event.preventDefault();
       if (!selectedId) return;
+      const targetId = selectedId;
+      const selectedRecord = getSelectedRecord();
       const category = classify($('humanResult').value, $('modelResult').value || getSelectedModelResult(), $('sampleValidity').value);
       const shouldSaveAttribution = needsAttribution(category);
       const selectedReasons = getSelectedReasons();
@@ -2908,21 +2910,42 @@
         attribution_branch: shouldSaveAttribution ? $('attributionBranch').value : '',
         attribution_reason: shouldSaveAttribution ? selectedReasons.join('、') : '',
         note: shouldSaveAttribution ? $('note').value : '',
+        base_updated_at: selectedRecord ? (selectedRecord.local_updated_at || '') : '',
       };
       $('saveMessage').textContent = '正在保存...';
       $('saveMessage').className = 'message';
       let response;
       let data = {};
-      try {
-        response = await fetch(`/api/annotations/${encodeURIComponent(selectedId)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        data = await response.json();
-      } catch (error) {
-        $('saveMessage').textContent = `保存失败：${error.message || '网络或接口异常'}`;
+      let forceOverwrite = false;
+      while (true) {
+        try {
+          response = await fetch(`/api/annotations/${encodeURIComponent(targetId)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...body, force: forceOverwrite }),
+          });
+          data = await response.json();
+        } catch (error) {
+          $('saveMessage').textContent = `保存失败：${error.message || '网络或接口异常'}`;
+          $('saveMessage').className = 'message error';
+          return;
+        }
+        if (response.status !== 409 || forceOverwrite) break;
+        $('saveMessage').textContent = data.message || '该图片已被其他人更新';
         $('saveMessage').className = 'message error';
+        const overwrite = confirm(`${$('saveMessage').textContent}\n\n确定：覆盖最新标注\n取消：刷新当前图片`);
+        if (overwrite) {
+          forceOverwrite = true;
+          $('saveMessage').textContent = '正在覆盖保存...';
+          $('saveMessage').className = 'message';
+          continue;
+        }
+        await loadRecords(true);
+        if (records.some((item) => item.id === targetId)) {
+          selectRecord(targetId);
+        }
+        $('saveMessage').textContent = '已刷新，请确认后再保存';
+        $('saveMessage').className = 'message';
         return;
       }
       if (!response.ok) {
@@ -2935,8 +2958,8 @@
       formDirty = false;
       await loadRecords(true);
       if ($('autoNext').checked) {
-        const nextId = getNextUnlabeledId(selectedId);
-        if (nextId && nextId !== selectedId) {
+        const nextId = getNextUnlabeledId(targetId);
+        if (nextId && nextId !== targetId) {
           selectRecord(nextId);
           $('saveMessage').textContent = '已保存，已跳到下一张未标注';
         } else {
@@ -3143,6 +3166,24 @@
         hour12: false,
       }).format(date);
     }
+    function makeRealtimePlaceholder(camera, message) {
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+          <rect width="640" height="360" fill="#111827"/>
+          <text x="50%" y="44%" text-anchor="middle" fill="#dbe4f3" font-size="22" font-family="Arial, sans-serif" font-weight="700">cam${camera} 实时画面未加载</text>
+          <text x="50%" y="55%" text-anchor="middle" fill="#94a3b8" font-size="16" font-family="Arial, sans-serif">${message}</text>
+        </svg>
+      `;
+      return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    }
+    function setRealtimePlaceholder(camera, message) {
+      const targetImage = $(`realtimeImageCam${camera}`);
+      const targetTime = $(`realtimeCam${camera}Time`);
+      if (targetImage && targetImage.dataset.hasRealtimeFrame !== '1') {
+        targetImage.src = makeRealtimePlaceholder(camera, message);
+      }
+      if (targetTime) targetTime.textContent = message;
+    }
     function refreshRealtimeCamera(camera) {
       return new Promise((resolve) => {
         const image = new Image();
@@ -3150,11 +3191,17 @@
         image.onload = () => {
           const targetImage = $(`realtimeImageCam${camera}`);
           const targetTime = $(`realtimeCam${camera}Time`);
-          if (targetImage) targetImage.src = url;
+          if (targetImage) {
+            targetImage.src = url;
+            targetImage.dataset.hasRealtimeFrame = '1';
+          }
           if (targetTime) targetTime.textContent = formatClock();
           resolve(true);
         };
-        image.onerror = () => resolve(false);
+        image.onerror = () => {
+          setRealtimePlaceholder(camera, '实时服务不可达');
+          resolve(false);
+        };
         image.src = url;
       });
     }
