@@ -872,82 +872,144 @@
     }
     .object-tag-stat-list {
       display: grid;
-      gap: 8px;
+      gap: 10px;
     }
-    .object-tag-stat-card {
+    .object-tag-summary-wrap,
+    .object-tag-reason-panel {
       border: 1px solid var(--line);
       border-radius: 8px;
       background: #fff;
       overflow: hidden;
-      cursor: pointer;
     }
-    .object-tag-stat-card:hover {
-      background: #f4f8ff;
-      border-color: #b8c8ec;
+    .object-tag-summary-wrap {
+      max-height: 330px;
+      overflow: auto;
     }
-    .object-tag-stat-card.is-collapsed {
+    .object-tag-summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .object-tag-summary-table th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
       background: #fbfcff;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 7px 10px;
+      text-align: left;
+      white-space: nowrap;
     }
-    .object-tag-stat-head {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 10px;
-      align-items: center;
+    .object-tag-summary-table td {
+      border-bottom: 1px solid var(--line);
       padding: 8px 10px;
-      min-width: 0;
+      white-space: nowrap;
     }
-    .object-tag-check {
-      display: inline-flex;
-      gap: 8px;
-      align-items: center;
-      min-width: 0;
-      color: var(--text);
-      font-weight: 750;
+    .object-tag-summary-table tbody tr {
       cursor: pointer;
-      user-select: none;
     }
-    .object-tag-check input {
-      flex: 0 0 auto;
-      width: 16px;
-      height: 16px;
-      accent-color: var(--accent);
+    .object-tag-summary-table tbody tr:hover,
+    .object-tag-summary-table tbody tr.is-selected {
+      background: #f4f8ff;
+    }
+    .object-tag-summary-table tbody tr:last-child td {
+      border-bottom: 0;
+    }
+    .object-tag-summary-table th:not(:first-child),
+    .object-tag-summary-table td:not(:first-child) {
+      text-align: right;
     }
     .object-tag-name {
       display: block;
       min-width: 0;
+      max-width: 180px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      font-weight: 750;
     }
-    .object-tag-sample {
-      color: var(--muted);
+    .object-tag-detail-button {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #f8fbff;
+      color: var(--accent);
       font-size: 12px;
-      white-space: nowrap;
+      font-weight: 700;
+      line-height: 1;
+      padding: 5px 8px;
     }
-    .object-tag-stat-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      border-top: 1px solid var(--line);
+    .object-tag-detail-button:hover,
+    .object-tag-detail-button.is-selected {
+      background: #e8efff;
+      border-color: #b8c8ec;
     }
-    .object-tag-stat {
-      min-width: 0;
+    .object-tag-reason-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
       padding: 9px 10px;
-      border-left: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      font-weight: 800;
     }
-    .object-tag-stat:first-child {
-      border-left: 0;
-    }
-    .object-tag-stat-label {
+    .object-tag-reason-subtitle {
       color: var(--muted);
       font-size: 12px;
-      line-height: 1.2;
-      margin-bottom: 3px;
+      font-weight: 500;
+      white-space: nowrap;
     }
-    .object-tag-stat-value {
+    .object-tag-reason-list {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 90px 90px;
+      gap: 0;
+    }
+    .object-tag-reason-row {
+      font-size: 12px;
+      line-height: 1.25;
+      padding: 7px 10px;
+      border-top: 1px dashed var(--line);
+      min-width: 0;
+    }
+    .object-tag-reason-row:nth-child(-n + 3) {
+      border-top: 0;
+    }
+    .object-tag-reason-head {
+      color: var(--muted);
+      font-weight: 700;
+      background: #fbfcff;
+    }
+    .object-tag-reason-num {
+      text-align: right;
+    }
+    .object-tag-reason-name {
+      min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-weight: 800;
+    }
+    .object-tag-reason-hit {
+      display: inline-block;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text);
+      font-weight: 750;
+      white-space: nowrap;
+      padding: 2px 4px;
+      cursor: pointer;
+    }
+    .object-tag-reason-hit:hover,
+    .object-tag-reason-hit.is-active {
+      background: #e6efff;
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .object-tag-reason-muted {
+      color: #9aa4b7;
+      white-space: nowrap;
     }
     .object-tag-empty {
       border: 1px solid var(--line);
@@ -975,14 +1037,8 @@
         grid-template-columns: 1fr;
       }
       .object-tag-panel { grid-column: auto; }
-      .object-tag-stat-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-      .object-tag-stat:nth-child(odd) {
-        border-left: 0;
-      }
-      .object-tag-stat:nth-child(n + 3) {
-        border-top: 1px solid var(--line);
+      .object-tag-reason-list {
+        grid-template-columns: minmax(0, 1fr) 78px 78px;
       }
       .import-row { grid-template-columns: 1fr; }
       .record-list { grid-template-columns: 1fr; }
@@ -1387,6 +1443,14 @@
     const RECORD_FETCH_LIMIT = 'all';
     const RECORD_PAGE_SIZE = 120;
     const LEGACY_IMPORT_PATH_KEY = 'pickVerifyLegacyImportPath';
+    const MATRIX_CATEGORIES = ['正确识别夹住', '漏判', '误判', '正确识别未夹住'];
+    const SUMMARY_CATEGORIES = [
+      ...MATRIX_CATEGORIES,
+      'VLM 调用失败',
+      '待人工标注',
+      '无效样本',
+      '无法判断',
+    ];
 
     let records = [];
     let selectedId = '';
@@ -1394,15 +1458,17 @@
     let resultFilter = '';
     let tagFilter = '';
     let selectedDate = '';
+    let reasonFilterCategory = '';
+    let reasonFilterReason = '';
     let customReasonOptions = {};
     let autoVlmTimer = null;
     let activeDetailRecordId = '';
     let formDirty = false;
     let batchMode = false;
     let currentListPage = 1;
+    let lastObjectTagStats = [];
+    let selectedObjectTagStatsTag = '';
     const batchSelectedIds = new Set();
-    const objectTagStatsVisibleTags = new Set();
-    const knownObjectTagStatsTags = new Set();
 
     const $ = (id) => document.getElementById(id);
     const pct = (value) => value === null || value === undefined ? '-' : `${(value * 100).toFixed(1)}%`;
@@ -1457,6 +1523,19 @@
       return safe(record && record.annotation && record.annotation.object_tag, '').trim();
     }
 
+    function clearReasonFilter() {
+      reasonFilterCategory = '';
+      reasonFilterReason = '';
+    }
+
+    function recordMatchesReasonFilter(record) {
+      if (!reasonFilterCategory || !reasonFilterReason) return true;
+      if ((record.eval_classification || '待人工标注') !== reasonFilterCategory) return false;
+      const reasons = normalizeReasons(record.annotation && record.annotation.attribution_reason);
+      if (reasonFilterReason === '未填写原因') return reasons.length === 0;
+      return reasons.includes(reasonFilterReason);
+    }
+
     function getAvailableObjectTags() {
       return Array.from(new Set(records.filter(shouldEvaluateRecord).map(getObjectTag).filter(Boolean)))
         .sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
@@ -1478,10 +1557,13 @@
     function updateListMessage() {
       const dateText = selectedDate ? `，日期 ${selectedDate}` : '';
       const tagText = tagFilter ? `，标签 ${tagFilter}` : '';
+      const reasonText = reasonFilterCategory && reasonFilterReason
+        ? `，${reasonFilterCategory}原因 ${reasonLabels[reasonFilterReason] || reasonFilterReason}`
+        : '';
       const visibleRecords = getVisibleRecords();
       const visibleGroups = groupVisibleRecords(visibleRecords);
       const totalPages = Math.max(1, Math.ceil(visibleGroups.length / RECORD_PAGE_SIZE));
-      $('listMessage').textContent = `已读取 ${records.length} 条记录${dateText}${tagText}，当前匹配 ${visibleRecords.length} 条，共 ${visibleGroups.length} 组，第 ${Math.min(currentListPage, totalPages)}/${totalPages} 页`;
+      $('listMessage').textContent = `已读取 ${records.length} 条记录${dateText}${tagText}${reasonText}，当前匹配 ${visibleRecords.length} 条，共 ${visibleGroups.length} 组，第 ${Math.min(currentListPage, totalPages)}/${totalPages} 页`;
     }
 
     function resetListPage() {
@@ -1717,6 +1799,9 @@
       }
       if (selectedDate) {
         baseRecords = baseRecords.filter((record) => getRecordDateKey(record) === selectedDate);
+      }
+      if (reasonFilterCategory && reasonFilterReason) {
+        baseRecords = baseRecords.filter(recordMatchesReasonFilter);
       }
       return baseRecords;
     }
@@ -2272,8 +2357,10 @@
 
     function applyObjectTagStatsFilter(tag) {
       if (!tag) return;
+      selectedObjectTagStatsTag = tag;
       tagFilter = tag;
       resultFilter = '';
+      clearReasonFilter();
       selectedDate = '';
       listMode = 'all';
       resetListPage();
@@ -2286,96 +2373,309 @@
       selectFirstVisibleRecordIfNeeded();
       renderList();
       renderDetail();
+      renderFilteredSummary();
       updateListMessage();
       $('recordList').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
+    function applyObjectTagReasonFilter(tag, category, reason) {
+      if (!tag || !category || !reason) return;
+      selectedObjectTagStatsTag = tag;
+      tagFilter = tag;
+      resultFilter = category;
+      reasonFilterCategory = category;
+      reasonFilterReason = reason;
+      selectedDate = '';
+      listMode = 'all';
+      resetListPage();
+      batchSelectedIds.clear();
+      $('resultFilter').value = resultFilter;
+      $('tagFilter').value = tagFilter;
+      $('dateFilter').value = '';
+      renderTagFilter();
+      renderDatePager();
+      selectFirstVisibleRecordIfNeeded();
+      renderList();
+      renderDetail();
+      renderFilteredSummary();
+      updateListMessage();
+      $('recordList').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function mergeObjectTagReasonStats(fnReasons, fpReasons, fnTotal, fpTotal) {
+      const reasonMap = new Map();
+      (fnReasons || []).forEach((item) => {
+        const reasonName = safe(item.reason, '未填写原因');
+        const row = reasonMap.get(reasonName) || { reason: reasonName, fn: 0, fp: 0, fnRate: null, fpRate: null };
+        row.fn = item.count || 0;
+        row.fnRate = item.rate ?? (fnTotal ? row.fn / fnTotal : null);
+        reasonMap.set(reasonName, row);
+      });
+      (fpReasons || []).forEach((item) => {
+        const reasonName = safe(item.reason, '未填写原因');
+        const row = reasonMap.get(reasonName) || { reason: reasonName, fn: 0, fp: 0, fnRate: null, fpRate: null };
+        row.fp = item.count || 0;
+        row.fpRate = item.rate ?? (fpTotal ? row.fp / fpTotal : null);
+        reasonMap.set(reasonName, row);
+      });
+      return Array.from(reasonMap.values())
+        .filter((row) => row.fn || row.fp)
+        .sort((a, b) => {
+          const totalA = a.fn + a.fp;
+          const totalB = b.fn + b.fp;
+          if (totalA !== totalB) return totalB - totalA;
+          return a.reason.localeCompare(b.reason, 'zh-Hans-CN');
+        });
+    }
+
+    function renderReasonHit(tagName, category, reasonName, count, rate) {
+      if (!count) return '<span class="object-tag-reason-muted">-</span>';
+      const active = tagFilter === tagName && reasonFilterCategory === category && reasonFilterReason === reasonName;
+      return `
+        <button type="button" class="object-tag-reason-hit${active ? ' is-active' : ''}" data-object-tag="${escapeHtml(tagName)}" data-reason-category="${escapeHtml(category)}" data-reason-name="${escapeHtml(reasonName)}" title="点击筛选 ${escapeHtml(reasonLabels[reasonName] || reasonName)} ${category}">
+          ${formatCountRate(count, rate)}
+        </button>
+      `;
+    }
+
+    function renderObjectTagReasonStats(tagName, stat) {
+      const rows = mergeObjectTagReasonStats(stat.fnReasons || [], stat.fpReasons || [], stat.fn || 0, stat.fp || 0);
+      return `
+        <div class="object-tag-reason-list">
+          <div class="object-tag-reason-row object-tag-reason-head">具体原因</div>
+          <div class="object-tag-reason-row object-tag-reason-head object-tag-reason-num">漏判</div>
+          <div class="object-tag-reason-row object-tag-reason-head object-tag-reason-num">误判</div>
+          ${rows.length ? rows.map((item) => {
+            const reasonName = safe(item.reason, '未填写原因');
+            const label = escapeHtml(reasonLabels[reasonName] || reasonName);
+            return `
+              <div class="object-tag-reason-row object-tag-reason-name" title="${label}">
+                <span class="object-tag-reason-name">${label}</span>
+              </div>
+              <div class="object-tag-reason-row object-tag-reason-num">${renderReasonHit(tagName, '漏判', reasonName, item.fn, item.fnRate)}</div>
+              <div class="object-tag-reason-row object-tag-reason-num">${renderReasonHit(tagName, '误判', reasonName, item.fp, item.fpRate)}</div>
+            `;
+          }).join('') : `
+            <div class="object-tag-reason-row object-tag-reason-muted">暂无具体原因</div>
+            <div class="object-tag-reason-row object-tag-reason-muted object-tag-reason-num">-</div>
+            <div class="object-tag-reason-row object-tag-reason-muted object-tag-reason-num">-</div>
+          `}
+        </div>
+      `;
+    }
+
     function renderObjectTagStats(stats) {
       const container = $('objectTagStatsRows');
+      lastObjectTagStats = stats || [];
       if (!stats || !stats.length) {
         container.innerHTML = '<div class="object-tag-empty muted">暂无已评估的物品标签样本</div>';
+        selectedObjectTagStatsTag = '';
         return;
       }
-      const currentTags = new Set(stats.map((stat) => safe(stat.tag, '')));
-      Array.from(objectTagStatsVisibleTags).forEach((tag) => {
-        if (!currentTags.has(tag)) objectTagStatsVisibleTags.delete(tag);
-      });
-      Array.from(knownObjectTagStatsTags).forEach((tag) => {
-        if (!currentTags.has(tag)) knownObjectTagStatsTags.delete(tag);
-      });
-      stats.forEach((stat) => {
-        const tagName = safe(stat.tag, '');
-        if (!knownObjectTagStatsTags.has(tagName)) {
-          objectTagStatsVisibleTags.add(tagName);
-          knownObjectTagStatsTags.add(tagName);
-        }
-      });
-      container.innerHTML = stats.map((stat) => {
-        const tagName = safe(stat.tag, '');
-        const tag = escapeHtml(tagName);
-        const correct = stat.correct ?? ((stat.tp || 0) + (stat.tn || 0));
-        const checked = objectTagStatsVisibleTags.has(tagName);
-        return `
-          <div class="object-tag-stat-card${checked ? '' : ' is-collapsed'}" data-object-tag="${tag}" title="点击筛选 ${tag}">
-            <div class="object-tag-stat-head">
-              <label class="object-tag-check">
-                <input type="checkbox" data-object-tag-toggle="${tag}" ${checked ? 'checked' : ''}>
-                <span class="object-tag-name" title="${tag}">${tag}</span>
-              </label>
-              <span class="object-tag-sample">样本 ${safe(stat.total, 0)}</span>
-            </div>
-            ${checked ? `
-              <div class="object-tag-stat-grid">
-                <div class="object-tag-stat">
-                  <div class="object-tag-stat-label">准确率</div>
-                  <div class="object-tag-stat-value">${pct(stat.accuracy)}</div>
-                </div>
-                <div class="object-tag-stat">
-                  <div class="object-tag-stat-label">漏判</div>
-                  <div class="object-tag-stat-value">${formatCountRate(stat.fn || 0, stat.missRate)}</div>
-                </div>
-                <div class="object-tag-stat">
-                  <div class="object-tag-stat-label">误判</div>
-                  <div class="object-tag-stat-value">${formatCountRate(stat.fp || 0, stat.falseAlarmRate)}</div>
-                </div>
-                <div class="object-tag-stat">
-                  <div class="object-tag-stat-label">正确</div>
-                  <div class="object-tag-stat-value">${safe(correct, 0)}</div>
-                </div>
-              </div>
-            ` : ''}
+      const availableTags = stats.map((stat) => safe(stat.tag, ''));
+      if (!selectedObjectTagStatsTag || !availableTags.includes(selectedObjectTagStatsTag)) {
+        selectedObjectTagStatsTag = availableTags[0] || '';
+      }
+      const selectedStat = stats.find((stat) => safe(stat.tag, '') === selectedObjectTagStatsTag) || stats[0];
+      const selectedTagName = safe(selectedStat && selectedStat.tag, '');
+      const selectedTag = escapeHtml(selectedTagName);
+      container.innerHTML = `
+        <div class="object-tag-summary-wrap">
+          <table class="object-tag-summary-table">
+            <thead>
+              <tr>
+                <th>物品标签</th>
+                <th>样本</th>
+                <th>准确率</th>
+                <th>漏判</th>
+                <th>误判</th>
+                <th>正确</th>
+                <th>原因</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${stats.map((stat) => {
+                const tagName = safe(stat.tag, '');
+                const tag = escapeHtml(tagName);
+                const correct = stat.correct ?? ((stat.tp || 0) + (stat.tn || 0));
+                const selected = tagName === selectedTagName;
+                return `
+                  <tr class="${selected ? 'is-selected' : ''}" data-object-tag="${tag}" title="点击筛选 ${tag}">
+                    <td><span class="object-tag-name" title="${tag}">${tag}</span></td>
+                    <td><strong>${safe(stat.total, 0)}</strong></td>
+                    <td>${pct(stat.accuracy)}</td>
+                    <td>${formatCountRate(stat.fn || 0, stat.missRate)}</td>
+                    <td>${formatCountRate(stat.fp || 0, stat.falseAlarmRate)}</td>
+                    <td>${safe(correct, 0)}</td>
+                    <td>
+                      <button type="button" class="object-tag-detail-button${selected ? ' is-selected' : ''}" data-object-tag-detail="${tag}" title="查看 ${tag} 的具体原因">
+                        查看
+                      </button>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div class="object-tag-reason-panel">
+          <div class="object-tag-reason-title">
+            <span>${selectedTag || '具体原因'}</span>
+            <span class="object-tag-reason-subtitle">具体原因统计</span>
           </div>
-        `;
-      }).join('');
-      container.querySelectorAll('.object-tag-stat-card[data-object-tag]').forEach((card) => {
-        card.onclick = () => applyObjectTagStatsFilter(card.dataset.objectTag);
+          ${renderObjectTagReasonStats(selectedTagName, selectedStat)}
+        </div>
+      `;
+      container.querySelectorAll('tr[data-object-tag]').forEach((row) => {
+        row.onclick = () => applyObjectTagStatsFilter(row.dataset.objectTag);
       });
-      container.querySelectorAll('.object-tag-check').forEach((label) => {
-        label.onclick = (event) => event.stopPropagation();
-      });
-      container.querySelectorAll('input[data-object-tag-toggle]').forEach((input) => {
-        input.onchange = (event) => {
+      container.querySelectorAll('.object-tag-detail-button[data-object-tag-detail]').forEach((button) => {
+        button.onclick = (event) => {
           event.stopPropagation();
-          const tag = input.dataset.objectTagToggle;
-          if (input.checked) {
-            objectTagStatsVisibleTags.add(tag);
-          } else {
-            objectTagStatsVisibleTags.delete(tag);
-          }
+          selectedObjectTagStatsTag = button.dataset.objectTagDetail;
           renderObjectTagStats(stats);
+        };
+      });
+      container.querySelectorAll('.object-tag-reason-hit[data-reason-name]').forEach((button) => {
+        button.onclick = (event) => {
+          event.stopPropagation();
+          applyObjectTagReasonFilter(button.dataset.objectTag, button.dataset.reasonCategory, button.dataset.reasonName);
         };
       });
     }
 
+    function addSummaryReasonCounts(target, value) {
+      const reasons = normalizeReasons(value);
+      const normalizedReasons = reasons.length ? reasons : ['未填写原因'];
+      for (const reason of normalizedReasons) {
+        target[reason] = (target[reason] || 0) + 1;
+      }
+    }
+
+    function formatSummaryReasonStats(counts, total) {
+      return Object.entries(counts || {})
+        .map(([reason, count]) => ({
+          reason,
+          count,
+          rate: total ? count / total : null,
+        }))
+        .sort((a, b) => {
+          if (a.count !== b.count) return b.count - a.count;
+          return a.reason.localeCompare(b.reason, 'zh-Hans-CN');
+        });
+    }
+
+    function buildSummary(recordsToSummarize) {
+      const visibleEvaluationRecords = (recordsToSummarize || []).filter(shouldEvaluateRecord);
+      const objectTagStats = new Map();
+      const summary = {
+        total: 0,
+        evaluationTotal: visibleEvaluationRecords.length,
+        savedTotal: recordsToSummarize ? recordsToSummarize.length : 0,
+        referenceTotal: recordsToSummarize ? recordsToSummarize.length - visibleEvaluationRecords.length : 0,
+        labeled: 0,
+        pending: 0,
+        valid: 0,
+        vlmCompleted: 0,
+        vlmFailed: 0,
+        evaluable: 0,
+        categories: Object.fromEntries(SUMMARY_CATEGORIES.map((category) => [category, 0])),
+        attribution: {},
+        objectTagStats: [],
+      };
+
+      for (const record of visibleEvaluationRecords) {
+        const annotation = record.annotation || {};
+        const category = record.eval_classification || '待人工标注';
+        summary.categories[category] = (summary.categories[category] || 0) + 1;
+        if (annotation.human_result) summary.labeled += 1;
+        if (!annotation.human_result) summary.pending += 1;
+        if (annotation.sample_validity === 'valid') summary.valid += 1;
+        if (record.vlm && record.vlm.status === 'completed') summary.vlmCompleted += 1;
+        if ((record.vlm && record.vlm.status === 'failed') || record.vlm_status === 'failed') summary.vlmFailed += 1;
+        if (annotation.attribution_branch) {
+          summary.attribution[annotation.attribution_branch] = (summary.attribution[annotation.attribution_branch] || 0) + 1;
+        }
+
+        if (!MATRIX_CATEGORIES.includes(category)) continue;
+        summary.evaluable += 1;
+        const objectTag = getObjectTag(record);
+        if (!objectTag) continue;
+        const stat = objectTagStats.get(objectTag) || {
+          tag: objectTag,
+          total: 0,
+          tp: 0,
+          fn: 0,
+          fp: 0,
+          tn: 0,
+          correct: 0,
+          accuracy: null,
+          missRate: null,
+          falseAlarmRate: null,
+          fnReasons: {},
+          fpReasons: {},
+        };
+        stat.total += 1;
+        if (category === '正确识别夹住') {
+          stat.tp += 1;
+          stat.correct += 1;
+        } else if (category === '漏判') {
+          stat.fn += 1;
+          addSummaryReasonCounts(stat.fnReasons, annotation.attribution_reason);
+        } else if (category === '误判') {
+          stat.fp += 1;
+          addSummaryReasonCounts(stat.fpReasons, annotation.attribution_reason);
+        } else if (category === '正确识别未夹住') {
+          stat.tn += 1;
+          stat.correct += 1;
+        }
+        objectTagStats.set(objectTag, stat);
+      }
+
+      const tp = summary.categories['正确识别夹住'] || 0;
+      const fn = summary.categories['漏判'] || 0;
+      const fp = summary.categories['误判'] || 0;
+      const tn = summary.categories['正确识别未夹住'] || 0;
+      const correct = tp + tn;
+      summary.total = tp + fn + fp + tn;
+      summary.evaluable = summary.total;
+      summary.accuracy = summary.evaluable ? correct / summary.evaluable : null;
+      summary.recall = tp + fn ? tp / (tp + fn) : null;
+      summary.precision = tp + fp ? tp / (tp + fp) : null;
+      summary.missRate = tp + fn ? fn / (tp + fn) : null;
+      summary.falseAlarmRate = fp + tn ? fp / (fp + tn) : null;
+      summary.labelCoverage = summary.evaluationTotal ? summary.labeled / summary.evaluationTotal : null;
+      summary.objectTagStats = Array.from(objectTagStats.values())
+        .map((stat) => ({
+          ...stat,
+          accuracy: stat.total ? stat.correct / stat.total : null,
+          missRate: stat.tp + stat.fn ? stat.fn / (stat.tp + stat.fn) : null,
+          falseAlarmRate: stat.fp + stat.tn ? stat.fp / (stat.fp + stat.tn) : null,
+          fnReasons: formatSummaryReasonStats(stat.fnReasons, stat.fn),
+          fpReasons: formatSummaryReasonStats(stat.fpReasons, stat.fp),
+        }))
+        .sort((a, b) => {
+          const aErrors = a.fn + a.fp;
+          const bErrors = b.fn + b.fp;
+          if (aErrors !== bErrors) return bErrors - aErrors;
+          if (a.accuracy !== b.accuracy) return (a.accuracy ?? 1) - (b.accuracy ?? 1);
+          if (a.total !== b.total) return b.total - a.total;
+          return a.tag.localeCompare(b.tag, 'zh-Hans-CN');
+        });
+
+      return summary;
+    }
+
     function renderSummary(summary) {
+      const categories = summary.categories || {};
       $('mTotal').textContent = safe(summary.total);
       $('mCoverage').textContent = pct(summary.labelCoverage);
       $('mAccuracy').textContent = pct(summary.accuracy);
       $('mMissRate').textContent = pct(summary.missRate);
-      $('cTp').textContent = summary.categories['正确识别夹住'] || 0;
-      $('cFn').textContent = summary.categories['漏判'] || 0;
-      $('cFp').textContent = summary.categories['误判'] || 0;
-      $('cTn').textContent = summary.categories['正确识别未夹住'] || 0;
+      $('cTp').textContent = categories['正确识别夹住'] || 0;
+      $('cFn').textContent = categories['漏判'] || 0;
+      $('cFp').textContent = categories['误判'] || 0;
+      $('cTn').textContent = categories['正确识别未夹住'] || 0;
 
       const attributionEntries = Object.entries(summary.attribution || {});
       const attribution = attributionEntries.filter(([name]) => reasonOptions[name]);
@@ -2389,7 +2689,6 @@
         ? attribution.map(([name, count]) => `<tr><td>${name}</td><td><strong>${count}</strong></td></tr>`).join('')
         : '<tr><td colspan="2" class="muted">暂无归因数据</td></tr>';
 
-      const categories = summary.categories || {};
       const sideRows = [
         ['待人工标注', categories['待人工标注'] || 0],
         ['无法判断', categories['无法判断'] || 0],
@@ -2400,6 +2699,10 @@
         .map(([name, count]) => `<tr><td>${name}</td><td><strong>${count}</strong></td></tr>`)
         .join('');
       renderObjectTagStats(summary.objectTagStats || []);
+    }
+
+    function renderFilteredSummary() {
+      renderSummary(buildSummary(getVisibleRecords()));
     }
 
     async function loadRecords(keepSelection = true) {
@@ -2422,7 +2725,7 @@
       }
       renderList();
       renderDetail();
-      renderSummary(data.summary || {});
+      renderFilteredSummary();
       updateListMessage();
     }
 
@@ -2722,12 +3025,14 @@
       listMode = 'all';
       resultFilter = '';
       tagFilter = '';
+      clearReasonFilter();
       $('resultFilter').value = '';
       $('tagFilter').value = '';
       resetListPage();
       selectFirstVisibleRecordIfNeeded();
       renderList();
       renderDetail();
+      renderFilteredSummary();
       updateListMessage();
     };
     $('toggleBatchButton').onclick = () => {
@@ -2753,6 +3058,7 @@
     };
     $('resultFilter').onchange = () => {
       resultFilter = $('resultFilter').value;
+      clearReasonFilter();
       listMode = 'all';
       resetListPage();
       if (resultFilter === '__unlabeled') {
@@ -2765,16 +3071,19 @@
       selectFirstVisibleRecordIfNeeded();
       renderList();
       renderDetail();
+      renderFilteredSummary();
       updateListMessage();
     };
     $('tagFilter').onchange = () => {
       tagFilter = $('tagFilter').value;
+      clearReasonFilter();
       listMode = 'all';
       resetListPage();
       batchSelectedIds.clear();
       selectFirstVisibleRecordIfNeeded();
       renderList();
       renderDetail();
+      renderFilteredSummary();
       updateListMessage();
     };
     $('dateFilter').onchange = () => {
@@ -2784,6 +3093,7 @@
       selectFirstVisibleRecordIfNeeded();
       renderList();
       renderDetail();
+      renderFilteredSummary();
       updateListMessage();
     };
     $('prevDateButton').onclick = () => {
@@ -2797,6 +3107,7 @@
         selectFirstVisibleRecordIfNeeded();
         renderList();
         renderDetail();
+        renderFilteredSummary();
         updateListMessage();
       }
     };
@@ -2811,6 +3122,7 @@
         selectFirstVisibleRecordIfNeeded();
         renderList();
         renderDetail();
+        renderFilteredSummary();
         updateListMessage();
       }
     };
@@ -2877,6 +3189,7 @@
           resultFilter = '';
           tagFilter = '';
           selectedDate = '';
+          clearReasonFilter();
           $('resultFilter').value = '';
           $('tagFilter').value = '';
           $('dateFilter').value = '';

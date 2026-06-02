@@ -119,6 +119,35 @@ function normalizeCustomReasonOptions(value = {}) {
   return result;
 }
 
+function normalizeAttributionReasons(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item || '').trim()).filter(Boolean);
+  }
+  if (!value) return [];
+  return String(value).split(/[、|]/).map((item) => item.trim()).filter(Boolean);
+}
+
+function addReasonCounts(target, value) {
+  const reasons = normalizeAttributionReasons(value);
+  const normalizedReasons = reasons.length ? reasons : ['未填写原因'];
+  for (const reason of normalizedReasons) {
+    target[reason] = (target[reason] || 0) + 1;
+  }
+}
+
+function formatReasonStats(counts, total) {
+  return Object.entries(counts || {})
+    .map(([reason, count]) => ({
+      reason,
+      count,
+      rate: total ? count / total : null,
+    }))
+    .sort((a, b) => {
+      if (a.count !== b.count) return b.count - a.count;
+      return a.reason.localeCompare(b.reason, 'zh-Hans-CN');
+    });
+}
+
 function ensureLocalImageDir() {
   if (!fs.existsSync(LOCAL_IMAGE_DIR)) {
     fs.mkdirSync(LOCAL_IMAGE_DIR, { recursive: true });
@@ -544,6 +573,8 @@ function summarize(records) {
           accuracy: null,
           missRate: null,
           falseAlarmRate: null,
+          fnReasons: {},
+          fpReasons: {},
         };
         stat.total += 1;
         if (category === '正确识别夹住') {
@@ -551,8 +582,10 @@ function summarize(records) {
           stat.correct += 1;
         } else if (category === '漏判') {
           stat.fn += 1;
+          addReasonCounts(stat.fnReasons, annotation.attribution_reason);
         } else if (category === '误判') {
           stat.fp += 1;
+          addReasonCounts(stat.fpReasons, annotation.attribution_reason);
         } else if (category === '正确识别未夹住') {
           stat.tn += 1;
           stat.correct += 1;
@@ -585,6 +618,8 @@ function summarize(records) {
       accuracy: stat.total ? stat.correct / stat.total : null,
       missRate: stat.tp + stat.fn ? stat.fn / (stat.tp + stat.fn) : null,
       falseAlarmRate: stat.fp + stat.tn ? stat.fp / (stat.fp + stat.tn) : null,
+      fnReasons: formatReasonStats(stat.fnReasons, stat.fn),
+      fpReasons: formatReasonStats(stat.fpReasons, stat.fp),
     }))
     .sort((a, b) => {
       const aErrors = a.fn + a.fp;
