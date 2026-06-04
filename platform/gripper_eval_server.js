@@ -1,3 +1,9 @@
+/**
+ * 这个文件是一个 Node.js HTTP 服务，用来做机器人夹爪图片评估。
+ * 主要功能包括本地图片管理、实时相机抓图、调用 VLM 判断是否夹住物体、人工标注、统计准确率，以及把人工反馈回传给 pick-verifier 服务。
+ * 注释只解释代码意图，不改变原有逻辑。
+ */
+
 const fs = require('fs');
 const http = require('http');
 const os = require('os');
@@ -5,6 +11,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { importLegacyPlatform } = require('../scripts/import_legacy_lib');
 
+// 服务基础配置。大多数配置支持通过环境变量覆盖。
 const HOST = '0.0.0.0';
 const PORT = Number(process.env.PORT || 5034);
 const APP_BASE_URL = process.env.APP_BASE_URL || `http://127.0.0.1:${PORT}`;
@@ -20,7 +27,15 @@ const USE_SOURCE_5022 = process.env.USE_SOURCE_5022 === '1';
 const VLM_ENDPOINT = process.env.VLM_CHAT_COMPLETIONS_URL
   || process.env.VLM_ENDPOINT
   || 'http://101.132.143.105:5087/v1/chat/completions';
+const PICK_VERIFIER_FEEDBACK_ENDPOINT = process.env.PICK_VERIFIER_FEEDBACK_ENDPOINT
+  || VLM_ENDPOINT.replace(/\/v1\/chat\/completions\/?$/, '/api/pick-verifier/feedback');
 const VLM_MODEL = process.env.VLM_MODEL || 'pick_verifier_1200_merged';
+const VLM_PROMPT_VERSION = 'gripper_gn_binary_v1';
+const VLM_COMPATIBLE_PROMPT_VERSIONS = new Set([
+  VLM_PROMPT_VERSION,
+  'gripper_cn_binary_v1',
+  'gripper_cn_v1',
+]);
 const DATA_PATH = path.join(__dirname, 'gripper_eval_data.json');
 const HTML_PATH = path.join(__dirname, 'gripper_eval.html');
 const LOCAL_IMAGE_DIR = path.join(__dirname, 'local_images');
@@ -34,6 +49,7 @@ const IMAGE_CONTENT_TYPES = {
   '.gif': 'image/gif',
 };
 
+// 解析实时图像服务地址。支持逗号、空格和分号分隔。
 function parseRealtimeBaseUrls(value) {
   if (!value) return [];
   return String(value)
@@ -42,6 +58,7 @@ function parseRealtimeBaseUrls(value) {
     .filter(Boolean);
 }
 
+// 合并环境变量里的实时服务地址和默认地址，并去重。
 function getRealtimeBaseUrls() {
   return Array.from(new Set([
     ...parseRealtimeBaseUrls(process.env.REALTIME_BASE_URLS),
@@ -52,39 +69,59 @@ function getRealtimeBaseUrls() {
 
 const REALTIME_BASE_URLS = getRealtimeBaseUrls();
 
-const PROMPT = `判断机器人夹爪的状态。只能从下面四个中文选项中选择一个输出：
-闭合，已夹住：夹爪闭合，并且当前夹住了物体。
-闭合，未夹住：夹爪闭合，但没有夹住物体。
-张开，未夹住：夹爪张开，并且没有夹住物体。
-无法判断：图片证据不足，无法确定夹爪状态。
-只输出中文选项本身，不要输出解释。`;
+// 给视觉语言模型的提示词。要求模型只输出 G 或 N。
+const PROMPT = `判断机器人夹爪是否夹住了物体。只能输出下面一个字母，不要输出解释：
+G：夹住，夹爪当前夹住了物体。
+N：没夹住，夹爪当前没有夹住物体。`;
 
+// 把模型可能输出的字母映射成内部状态。兼容旧版 A/B/C/Y 等输出。
 const LETTER_TO_STATUS = {
-  A: 'Closed_Empty',
-  B: 'Closed_Grasped',
-  C: 'Opened_Empty',
+  A: 'Not_Grasped',
+  B: 'Grasped',
+  C: 'Not_Grasped',
+  G: 'Grasped',
+  N: 'Not_Grasped',
+  Y: 'Grasped',
 };
 
+// 内部状态对应的中文展示文案。
 const STATUS_TO_CN = {
+  Grasped: '夹住',
+  Not_Grasped: '没夹住',
   Closed_Empty: '闭合，未夹住',
   Closed_Grasped: '闭合，已夹住',
   Opened_Empty: '张开，未夹住',
   Unknown: '无法判断',
 };
 
+// 把中文、英文、布尔字符串等人工或模型输出统一成内部状态。
 const CN_TO_STATUS = {
-  '未夹住（闭合）': 'Closed_Empty',
-  '夹住（闭合）': 'Closed_Grasped',
-  '未夹住（张开）': 'Opened_Empty',
-  '闭合，未夹住': 'Closed_Empty',
-  '闭合，已夹住': 'Closed_Grasped',
-  '张开，未夹住': 'Opened_Empty',
   无法判断: 'Unknown',
+  没夹住: 'Not_Grasped',
+  未夹住: 'Not_Grasped',
+  没有夹住: 'Not_Grasped',
+  没抓住: 'Not_Grasped',
+  未抓住: 'Not_Grasped',
+  not_grasped: 'Not_Grasped',
+  'not grasped': 'Not_Grasped',
+  no: 'Not_Grasped',
+  false: 'Not_Grasped',
+  夹住: 'Grasped',
+  grasped: 'Grasped',
+  yes: 'Grasped',
+  true: 'Grasped',
+  '未夹住（闭合）': 'Not_Grasped',
+  '夹住（闭合）': 'Grasped',
+  '未夹住（张开）': 'Not_Grasped',
+  '闭合，未夹住': 'Not_Grasped',
+  '闭合，已夹住': 'Grasped',
+  '张开，未夹住': 'Not_Grasped',
   闭合空夹: 'Closed_Empty',
-  已夹住物体: 'Closed_Grasped',
+  已夹住物体: 'Grasped',
   张开空夹: 'Opened_Empty',
 };
 
+// 自动批量调用 VLM 的任务状态。前端可以查询这个对象了解进度。
 const autoVlmJob = {
   running: false,
   total: 0,
@@ -97,6 +134,7 @@ const autoVlmJob = {
   finished_at: null,
 };
 
+// 初始化本地数据结构。records 存图片和标注，custom_reason_options 存自定义归因原因。
 function defaultData() {
   return {
     version: 1,
@@ -105,6 +143,7 @@ function defaultData() {
   };
 }
 
+// 从 gripper_eval_data.json 读取数据。文件不存在或解析失败时返回空结构。
 function readData() {
   if (!fs.existsSync(DATA_PATH)) {
     return defaultData();
@@ -116,10 +155,12 @@ function readData() {
   }
 }
 
+// 把数据写回 gripper_eval_data.json。
 function writeData(data) {
   fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2), 'utf8');
 }
 
+// 清洗自定义归因原因，去掉空值和重复项。
 function normalizeCustomReasonOptions(value = {}) {
   const result = {};
   if (!value || typeof value !== 'object') return result;
@@ -144,6 +185,7 @@ function normalizeCustomReasonOptions(value = {}) {
   return result;
 }
 
+// 把归因原因统一成数组。支持数组，也支持用中文顿号或竖线分隔的字符串。
 function normalizeAttributionReasons(value) {
   if (Array.isArray(value)) {
     return value.map((item) => String(item || '').trim()).filter(Boolean);
@@ -152,6 +194,7 @@ function normalizeAttributionReasons(value) {
   return String(value).split(/[、|]/).map((item) => item.trim()).filter(Boolean);
 }
 
+// 统计某类归因原因出现次数。没有填写时归到“未填写原因”。
 function addReasonCounts(target, value) {
   const reasons = normalizeAttributionReasons(value);
   const normalizedReasons = reasons.length ? reasons : ['未填写原因'];
@@ -160,6 +203,7 @@ function addReasonCounts(target, value) {
   }
 }
 
+// 把原因计数转成列表，并计算占比，再按次数排序。
 function formatReasonStats(counts, total) {
   return Object.entries(counts || {})
     .map(([reason, count]) => ({
@@ -173,12 +217,14 @@ function formatReasonStats(counts, total) {
     });
 }
 
+// 确保本地图片目录存在。
 function ensureLocalImageDir() {
   if (!fs.existsSync(LOCAL_IMAGE_DIR)) {
     fs.mkdirSync(LOCAL_IMAGE_DIR, { recursive: true });
   }
 }
 
+// 规范化 limit 参数。all 表示不限制，其它非法值用默认值。
 function normalizeLimit(value, fallback = DEFAULT_RECORD_LIMIT) {
   if (String(value || '').toLowerCase() === 'all') return null;
   const parsed = Number(value);
@@ -186,25 +232,30 @@ function normalizeLimit(value, fallback = DEFAULT_RECORD_LIMIT) {
   return Math.min(Math.floor(parsed), MAX_RECORD_LIMIT);
 }
 
+// 按 limit 截断记录列表。limit 为 null 时不截断。
 function applyRecordLimit(records, limit) {
   return limit === null ? records : records.slice(0, limit);
 }
 
+// 根据文件后缀返回图片 Content-Type。
 function getImageContentType(filename) {
   return IMAGE_CONTENT_TYPES[path.extname(filename).toLowerCase()] || 'application/octet-stream';
 }
 
+// 根据本地文件名生成稳定的记录 ID，带哈希是为了减少重名冲突。
 function makeLocalFileRecordId(filename) {
   const baseName = path.basename(filename, path.extname(filename)).replace(/[^\w.\-]/g, '_').slice(0, 80) || 'image';
   const hash = crypto.createHash('sha1').update(filename).digest('hex').slice(0, 12);
   return `local_file_${hash}_${baseName}`;
 }
 
+// 从记录中取出真实存储的文件名。
 function getRecordFilename(record) {
   const source = record && record.local_source;
   return source && (source.stored_filename || source.original_filename || source.source_id);
 }
 
+// 解析实时抓图文件名，提取相机编号和时间戳。
 function parseRealtimeFilename(filename) {
   const match = /^realtime_cam([01])_(\d{14})_[^.]+\.(?:jpe?g|png|webp|gif)$/i.exec(filename);
   if (!match) return null;
@@ -214,6 +265,7 @@ function parseRealtimeFilename(filename) {
   };
 }
 
+// 对同一时间戳的 cam0 和 cam1 图片补充分组信息。cam1 参与评估，cam0 作为参考。
 function updateRealtimePairMetadata(data) {
   const groups = new Map();
   for (const [id, record] of Object.entries(data.records || {})) {
@@ -258,6 +310,7 @@ function updateRealtimePairMetadata(data) {
   return updated;
 }
 
+// 扫描 local_images 目录，把图片同步进本地 records，并处理重复和恢复删除。
 function syncLocalImagesToData(data = readData()) {
   ensureLocalImageDir();
   data.records = data.records || {};
@@ -337,6 +390,7 @@ function syncLocalImagesToData(data = readData()) {
   return data;
 }
 
+// 返回 JSON 响应，并禁止缓存。
 function sendJson(res, status, payload) {
   const body = JSON.stringify(payload, null, 2);
   res.writeHead(status, {
@@ -346,6 +400,7 @@ function sendJson(res, status, payload) {
   res.end(body);
 }
 
+// 返回文本或 HTML 响应，并禁止缓存。
 function sendText(res, status, body, contentType = 'text/plain; charset=utf-8') {
   res.writeHead(status, {
     'Content-Type': contentType,
@@ -354,6 +409,7 @@ function sendText(res, status, body, contentType = 'text/plain; charset=utf-8') 
   res.end(body);
 }
 
+// 读取请求体。这里把所有 chunk 拼成字符串。
 function readBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -363,6 +419,7 @@ function readBody(req) {
   });
 }
 
+// 请求外部接口并解析 JSON。非 2xx 会抛错。
 async function fetchJson(url, options) {
   const response = await fetch(url, options);
   const text = await response.text();
@@ -376,12 +433,14 @@ async function fetchJson(url, options) {
   return data;
 }
 
+// 从 5022 源服务拉取评估记录列表。开关 USE_SOURCE_5022 关闭时直接返回空数组。
 async function listSourceReviews(limit = 200) {
   if (!USE_SOURCE_5022) return [];
   const data = await fetchJson(`${SOURCE_BASE_URL}/api/reviews?limit=${encodeURIComponent(limit)}`);
   return Array.isArray(data.items) ? data.items : [];
 }
 
+// 从 5022 源服务获取单条评估记录。
 async function getSourceReview(id) {
   if (!USE_SOURCE_5022) {
     throw new Error('5022 源服务已禁用');
@@ -389,6 +448,7 @@ async function getSourceReview(id) {
   return fetchJson(`${SOURCE_BASE_URL}/api/reviews/${encodeURIComponent(id)}`);
 }
 
+// 把记录里的图片地址转成可访问的完整 URL。
 function getImageUrl(review) {
   if (!review.image_url) return null;
   if (review.image_url.startsWith('http')) return review.image_url;
@@ -396,17 +456,105 @@ function getImageUrl(review) {
   return `${SOURCE_BASE_URL}${review.image_url}`;
 }
 
+// 整理网络错误信息，便于前端显示。
+function formatFetchError(error) {
+  const messages = [];
+  if (error && error.message) messages.push(error.message);
+  const cause = error && error.cause;
+  if (cause && cause.code) messages.push(cause.code);
+  if (cause && cause.address) messages.push(cause.port ? `${cause.address}:${cause.port}` : cause.address);
+  if (cause && cause.message && !messages.includes(cause.message)) messages.push(cause.message);
+  return messages.filter(Boolean).join('；') || String(error || '未知错误');
+}
+
+// 从 /api/local-images/xxx 形式的地址中取出本地文件名。
+function getLocalImageFilename(imagePath) {
+  const raw = String(imagePath || '').split(/[?#]/, 1)[0];
+  const prefix = '/api/local-images/';
+  if (!raw.startsWith(prefix)) return '';
+  try {
+    return path.basename(decodeURIComponent(raw.slice(prefix.length)));
+  } catch {
+    return path.basename(raw.slice(prefix.length));
+  }
+}
+
+// 读取本地图片二进制，并做路径校验，防止越权读取。
+function readLocalImageBuffer(imagePath) {
+  const filename = getLocalImageFilename(imagePath);
+  if (!filename) {
+    throw new Error(`本地图片地址无效：${imagePath || '-'}`);
+  }
+  const imagePathOnDisk = path.resolve(LOCAL_IMAGE_DIR, filename);
+  const imageDir = path.resolve(LOCAL_IMAGE_DIR);
+  if (!imagePathOnDisk.startsWith(`${imageDir}${path.sep}`)) {
+    throw new Error(`本地图片路径非法：${filename}`);
+  }
+  if (!fs.existsSync(imagePathOnDisk)) {
+    throw new Error(`本地图片不存在：${filename}`);
+  }
+  return fs.readFileSync(imagePathOnDisk);
+}
+
+// 找到同一抓图组里的另一张图片，通常是参考视角。
+function getPairedLocalSource(data, reviewId, source) {
+  const metadata = (source && source.source_metadata) || {};
+  if (metadata.paired_record_id && data.records[metadata.paired_record_id]?.local_source) {
+    return data.records[metadata.paired_record_id].local_source;
+  }
+  if (metadata.capture_group_id) {
+    for (const [id, item] of Object.entries(data.records || {})) {
+      if (id === reviewId || !item?.local_source) continue;
+      if (item.local_source.source_metadata?.capture_group_id === metadata.capture_group_id) {
+        return item.local_source;
+      }
+    }
+  }
+  return null;
+}
+
+// 把图片转成 VLM chat-completions 接口需要的 image_url 内容块。
+async function makeImageContentBlock(source) {
+  if (!source || !source.image_url) throw new Error('缺少图片地址');
+  let imageBuffer;
+  if (source.image_url.startsWith('/api/local-images/')) {
+    imageBuffer = readLocalImageBuffer(source.image_url);
+  } else {
+    const imageUrl = getImageUrl(source);
+    if (!imageUrl) throw new Error('缺少图片地址');
+    let imageResponse;
+    try {
+      imageResponse = await fetch(imageUrl);
+    } catch (error) {
+      throw new Error(`下载图片失败：${imageUrl}；${formatFetchError(error)}`);
+    }
+    if (!imageResponse.ok) {
+      throw new Error(`下载图片失败：${imageUrl}；HTTP ${imageResponse.status}`);
+    }
+    imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+  }
+  return {
+    type: 'image_url',
+    image_url: {
+      url: `data:${source.content_type || 'image/jpeg'};base64,${imageBuffer.toString('base64')}`,
+    },
+  };
+}
+
+// 把细分状态压成二分类结果。grasped、not_grasped 或 no_result。
 function mapVlmToModelResult(status) {
-  if (status === 'Closed_Grasped') return 'grasped';
-  if (status === 'Closed_Empty' || status === 'Opened_Empty') return 'not_grasped';
+  if (status === 'Grasped' || status === 'Closed_Grasped') return 'grasped';
+  if (status === 'Not_Grasped' || status === 'Closed_Empty' || status === 'Opened_Empty') return 'not_grasped';
   return 'no_result';
 }
 
+// 读取相机编号。空值返回 null。
 function getCameraId(record) {
   const cameraId = record && record.source_metadata && record.source_metadata.camera_id;
   return cameraId === null || cameraId === undefined || cameraId === '' ? null : Number(cameraId);
 }
 
+// 判断某条记录是否参与统计。实时抓图中 cam1 参与评估，cam0 默认只做参考。
 function participatesInEvaluation(record) {
   const metadata = (record && record.source_metadata) || {};
   if (metadata.evaluate === false) return false;
@@ -414,15 +562,21 @@ function participatesInEvaluation(record) {
   return true;
 }
 
+// 解析 VLM 原始输出。兼容中文、英文、字母和布尔值。
 function parseVlmOutput(rawOutput) {
   const text = String(rawOutput || '').trim();
+  const normalizedText = text.toLowerCase().replace(/^["'`]+|["'`.,，。；;:：\s]+$/g, '');
+  if (CN_TO_STATUS[normalizedText]) {
+    const predictedStatus = CN_TO_STATUS[normalizedText];
+    return { predictedStatus, predictedStatusCn: STATUS_TO_CN[predictedStatus] || normalizedText };
+  }
   for (const [label, status] of Object.entries(CN_TO_STATUS)) {
-    if (text.includes(label)) {
+    if (text.includes(label) || normalizedText.includes(label)) {
       return { predictedStatus: status, predictedStatusCn: label };
     }
   }
 
-  const letter = text.toUpperCase().slice(0, 1);
+  const letter = normalizedText.toUpperCase().slice(0, 1);
   const predictedStatus = LETTER_TO_STATUS[letter] || 'Unknown';
   return {
     predictedStatus,
@@ -430,6 +584,42 @@ function parseVlmOutput(rawOutput) {
   };
 }
 
+// 修复历史 VLM 结果。有些失败记录其实含有可解析输出，这里会转成 completed。
+function normalizeStoredVlm(vlm) {
+  if (!vlm || typeof vlm !== 'object') return {};
+  if (vlm.status !== 'failed') return vlm;
+
+  const rawOutput = String(vlm.raw_model_output || '').trim();
+  if (!rawOutput) return vlm;
+
+  const { predictedStatus, predictedStatusCn } = parseVlmOutput(rawOutput);
+  if (predictedStatus === 'Unknown') return vlm;
+
+  return {
+    ...vlm,
+    status: 'completed',
+    predicted_status: predictedStatus,
+    predicted_status_cn: predictedStatusCn,
+    model_result: mapVlmToModelResult(predictedStatus),
+    error: '',
+  };
+}
+
+// 判断失败的 VLM 结果是否值得重试。旧提示词版本或图片下载失败一般可以重试。
+function isRetryableFailedVlm(vlm) {
+  if (!vlm || vlm.status !== 'failed') return false;
+  const rawOutput = String(vlm.raw_model_output || '').trim();
+  if (rawOutput && parseVlmOutput(rawOutput).predictedStatus !== 'Unknown') {
+    return true;
+  }
+  const error = String(vlm.error || '');
+  if (vlm.prompt_version && !VLM_COMPATIBLE_PROMPT_VERSIONS.has(vlm.prompt_version)) {
+    return true;
+  }
+  return !vlm.prompt_version && (error === 'fetch failed' || error.includes('下载图片失败'));
+}
+
+// 根据人工标注和模型结果给记录分类，如正确、漏判、误判、无效样本等。
 function classify(record) {
   if (!participatesInEvaluation(record)) return '参考图像';
   const human = record.annotation && record.annotation.human_result;
@@ -459,8 +649,9 @@ function classify(record) {
   return '待人工标注';
 }
 
+// 合并源服务记录和本地标注/VLM 结果，形成前端使用的完整记录。
 function mergeRecord(source, local) {
-  const vlm = local.vlm || {};
+  const vlm = normalizeStoredVlm(local.vlm || {});
   const annotation = local.annotation || {};
   const modelResult = vlm.model_result || mapVlmToModelResult(source.predicted_status) || annotation.model_result;
   const evalRecord = {
@@ -480,12 +671,14 @@ function mergeRecord(source, local) {
   };
 }
 
+// 列出只存在于本地的记录。
 function listLocalOnlyRecords(data) {
   return Object.entries(data.records || {})
     .filter(([, local]) => local && local.local_source && !local.deleted)
     .map(([, local]) => mergeRecord(local.local_source, local));
 }
 
+// 排序规则。参与评估的排前面，再按创建或更新时间倒序。
 function sortNewestFirst(records) {
   return records.sort((a, b) => {
     const aEval = participatesInEvaluation(a) ? 1 : 0;
@@ -497,6 +690,7 @@ function sortNewestFirst(records) {
   });
 }
 
+// 构造一条本地图片记录，供上传、扫描、实时抓图统一使用。
 function makeLocalSourceRecord({
   id,
   filename,
@@ -525,6 +719,7 @@ function makeLocalSourceRecord({
   };
 }
 
+// 获取最终展示的记录列表。优先合并源服务数据，失败时退回本地数据。
 async function getMergedRecords(limit) {
   const data = syncLocalImagesToData(readData());
   const normalizedLimit = normalizeLimit(limit);
@@ -545,6 +740,7 @@ async function getMergedRecords(limit) {
   }
 }
 
+// 计算统计指标，包括准确率、召回率、精确率、漏判率、误判率和按物体标签分组的统计。
 function summarize(records) {
   const evaluationRecords = records.filter(participatesInEvaluation);
   const matrixCategories = ['正确识别夹住', '漏判', '误判', '正确识别未夹住'];
@@ -658,20 +854,16 @@ function summarize(records) {
   return summary;
 }
 
+// 调用视觉语言模型判断某张图片是否夹住物体，并返回标准化结果。
 async function runVlm(reviewId) {
-  const local = readData().records[reviewId] || {};
+  const data = readData();
+  const local = data.records[reviewId] || {};
   const source = local.local_source || await getSourceReview(reviewId);
-  const imageUrl = getImageUrl(source);
-  if (!imageUrl) {
-    throw new Error('缺少图片地址');
+  const pairedSource = local.local_source ? getPairedLocalSource(data, reviewId, source) : null;
+  const imageBlocks = [await makeImageContentBlock(source)];
+  if (pairedSource) {
+    imageBlocks.push(await makeImageContentBlock(pairedSource));
   }
-
-  const imageResponse = await fetch(imageUrl);
-  if (!imageResponse.ok) {
-    throw new Error(`下载图片失败：HTTP ${imageResponse.status}`);
-  }
-  const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
-  const imageBase64 = imageBuffer.toString('base64');
 
   const payload = {
     model: VLM_MODEL,
@@ -679,12 +871,7 @@ async function runVlm(reviewId) {
       {
         role: 'user',
         content: [
-          {
-            type: 'image_url',
-            image_url: {
-              url: `data:${source.content_type || 'image/jpeg'};base64,${imageBase64}`,
-            },
-          },
+          ...imageBlocks,
           { type: 'text', text: PROMPT },
         ],
       },
@@ -693,14 +880,19 @@ async function runVlm(reviewId) {
     temperature: 0,
   };
 
-  const response = await fetch(VLM_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(process.env.VLM_API_KEY ? { Authorization: `Bearer ${process.env.VLM_API_KEY}` } : {}),
-    },
-    body: JSON.stringify(payload),
-  });
+  let response;
+  try {
+    response = await fetch(VLM_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(process.env.VLM_API_KEY ? { Authorization: `Bearer ${process.env.VLM_API_KEY}` } : {}),
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    throw new Error(`VLM 调用失败：${VLM_ENDPOINT}；${formatFetchError(error)}`);
+  }
   const result = await response.json();
   if (!response.ok) {
     throw new Error(result.detail || result.message || `VLM HTTP ${response.status}`);
@@ -712,16 +904,80 @@ async function runVlm(reviewId) {
     status: predictedStatus === 'Unknown' ? 'failed' : 'completed',
     model: VLM_MODEL,
     endpoint: VLM_ENDPOINT,
-    prompt_version: 'gripper_cn_v1',
+    prompt_version: VLM_PROMPT_VERSION,
     predicted_status: predictedStatus,
     predicted_status_cn: predictedStatusCn,
     model_result: mapVlmToModelResult(predictedStatus),
     raw_model_output: rawOutput,
     raw_response: result,
+    pick_verifier_prediction_id: result.pick_verifier?.prediction_id || '',
+    pick_verifier_request_id: result.pick_verifier?.request_id || '',
+    error: predictedStatus === 'Unknown' ? `模型输出无法识别：${rawOutput || '空'}` : '',
     updated_at: new Date().toISOString(),
   };
 }
 
+// 把本地人工标注转换成 pick-verifier 反馈接口需要的格式。
+function humanReviewFromAnnotation(annotation) {
+  const humanResult = annotation.human_result || '';
+  const state = humanResult === 'grasped'
+    ? 'object_grasped'
+    : humanResult === 'closed_not_grasped'
+      ? 'closed_empty'
+      : humanResult === 'open_not_grasped'
+        ? 'opened_empty'
+        : humanResult;
+  return {
+    state,
+    label: state === 'closed_empty' ? 'A' : state === 'object_grasped' ? 'B' : state === 'opened_empty' ? 'C' : '',
+    sample_validity: annotation.sample_validity || '',
+    attribution_branch: annotation.attribution_branch || '',
+    attribution_reason: annotation.attribution_reason || '',
+    object_tag: annotation.object_tag || '',
+    note: annotation.note || '',
+  };
+}
+
+// 把人工标注回传给 pick-verifier，方便后续改进模型或分析。
+async function syncPickVerifierFeedback(reviewId, record, annotation) {
+  const vlm = normalizeStoredVlm(record.vlm || {});
+  const predictionId = vlm.pick_verifier_prediction_id || vlm.raw_response?.pick_verifier?.prediction_id || '';
+  const requestId = vlm.pick_verifier_request_id || vlm.raw_response?.pick_verifier?.request_id || '';
+  if (!predictionId) {
+    return { status: 'skipped', reason: 'missing_prediction_id', updated_at: new Date().toISOString() };
+  }
+  const response = await fetch(PICK_VERIFIER_FEEDBACK_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prediction_id: predictionId,
+      request_id: requestId,
+      metadata: { source_app: 'pick-verify', review_id: reviewId },
+      model_prediction: {
+        label: vlm.raw_response?.pick_verifier?.label || '',
+        state: vlm.raw_response?.pick_verifier?.state || '',
+        model_result: vlm.model_result || '',
+      },
+      human_review: humanReviewFromAnnotation(annotation),
+    }),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    return {
+      status: 'failed',
+      error: result.error?.message || result.message || `HTTP ${response.status}`,
+      updated_at: new Date().toISOString(),
+    };
+  }
+  return {
+    status: 'completed',
+    feedback_id: result.id || '',
+    endpoint: PICK_VERIFIER_FEEDBACK_ENDPOINT,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+// 获取 URL 端口。没有显式端口时，根据协议补默认端口。
 function getUrlPort(url) {
   if (url.port) return url.port;
   if (url.protocol === 'https:') return '443';
@@ -729,6 +985,7 @@ function getUrlPort(url) {
   return '';
 }
 
+// 收集本机所有可用地址，用来判断某个实时服务地址是不是当前服务自身。
 function getLocalHostnames() {
   const hosts = new Set(['0.0.0.0', '127.0.0.1', 'localhost', '::', '::1']);
   for (const addresses of Object.values(os.networkInterfaces())) {
@@ -741,6 +998,7 @@ function getLocalHostnames() {
 
 const LOCAL_HOSTNAMES = getLocalHostnames();
 
+// 判断目标 baseUrl 是否指向当前服务，避免代理请求打到自己造成循环请求。
 function isCurrentServerBase(baseUrl) {
   try {
     const target = new URL(baseUrl);
@@ -755,6 +1013,7 @@ function isCurrentServerBase(baseUrl) {
   }
 }
 
+// 根据实时服务类型生成可能的抓图接口地址。5033 和 9002 的路径不一样。
 function makeRealtimeFrameUrls(baseUrl, cam) {
   if (!baseUrl || isCurrentServerBase(baseUrl)) return [];
   let parsed;
@@ -775,6 +1034,7 @@ function makeRealtimeFrameUrls(baseUrl, cam) {
   return [proxyUrl, snapshotUrl, frameUrl];
 }
 
+// 带超时地请求实时图像，避免一个不可用地址长时间卡住。
 async function fetchWithRealtimeTimeout(targetUrl) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REALTIME_FETCH_TIMEOUT_MS);
@@ -785,12 +1045,14 @@ async function fetchWithRealtimeTimeout(targetUrl) {
   }
 }
 
+// 整理实时图像抓取错误。超时时给出明确提示。
 function formatRealtimeFetchError(error) {
   return error.name === 'AbortError'
     ? `超时 ${REALTIME_FETCH_TIMEOUT_MS}ms`
     : error.message || String(error);
 }
 
+// 依次尝试多个实时图像地址，直到成功拿到一张图。
 async function fetchRealtimeImage(cam) {
   const candidates = REALTIME_BASE_URLS.flatMap((baseUrl) => makeRealtimeFrameUrls(baseUrl, cam));
   let lastError = '';
@@ -806,6 +1068,7 @@ async function fetchRealtimeImage(cam) {
   throw new Error(`cam${cam} 抓图失败：${lastError || '无可用实时图像接口'}`);
 }
 
+// 代理实时页面。会尝试 /realtime/ 和根路径。
 async function fetchRealtimePage() {
   let lastError = '';
   for (const baseUrl of REALTIME_BASE_URLS) {
@@ -824,6 +1087,7 @@ async function fetchRealtimePage() {
   throw new Error(lastError || '无可用实时页面');
 }
 
+// 从实时相机保存一张快照到 local_images，并返回快照元数据。
 async function captureRealtimeSnapshot(cam, captureGroupId) {
   const response = await fetchRealtimeImage(cam);
   const contentType = response.headers.get('content-type') || 'image/jpeg';
@@ -843,6 +1107,7 @@ async function captureRealtimeSnapshot(cam, captureGroupId) {
   };
 }
 
+// 把实时快照写入本地 records。cam1 标为评估图，cam0 标为参考图。
 function upsertLocalRealtimeRecord(snapshot) {
   const id = `local_${snapshot.filename.replace(/\.[^.]+$/, '')}`;
   const cameraId = Number(snapshot.cam);
@@ -862,6 +1127,7 @@ function upsertLocalRealtimeRecord(snapshot) {
   return mergeRecord(localSource, local);
 }
 
+// 把同一组实时快照互相绑定，方便 VLM 同时使用评估图和参考图。
 function linkRealtimeGroup(records) {
   const ids = records.map((record) => record.id);
   for (const record of records) {
@@ -881,6 +1147,7 @@ function linkRealtimeGroup(records) {
   }
 }
 
+// 调用 VLM 并把结果写入本地数据。失败也会保存失败原因。
 async function runVlmAndPersist(reviewId) {
   try {
     const vlm = await runVlm(reviewId);
@@ -897,10 +1164,12 @@ async function runVlmAndPersist(reviewId) {
   }
 }
 
+// 异步触发 VLM，不阻塞当前 API 响应。
 function triggerVlmInBackground(reviewId) {
   void runVlmAndPersist(reviewId);
 }
 
+// 更新或新增一条本地记录，并立即落盘。
 function upsertLocalRecord(reviewId, patch) {
   const data = readData();
   upsertLocalRecordInData(data, reviewId, patch);
@@ -908,6 +1177,7 @@ function upsertLocalRecord(reviewId, patch) {
   return data.records[reviewId];
 }
 
+// 在内存中的 data 对象里更新或新增记录。调用者决定何时 writeData。
 function upsertLocalRecordInData(data, reviewId, patch) {
   const current = data.records[reviewId] || {};
   data.records[reviewId] = {
@@ -918,6 +1188,7 @@ function upsertLocalRecordInData(data, reviewId, patch) {
   return data.records[reviewId];
 }
 
+// 根据分组信息找出同一组记录，用于整组删除。
 function getLocalGroupRecordIds(data, reviewId) {
   const record = data.records[reviewId];
   if (!record || !record.local_source) return [reviewId];
@@ -940,6 +1211,7 @@ function getLocalGroupRecordIds(data, reviewId) {
   return Array.from(ids).filter((id) => data.records[id]);
 }
 
+// 删除记录对应的本地图片文件。
 function deleteLocalImageFile(record) {
   const filename = getRecordFilename(record);
   if (!filename) return { deleted: false, missing: '' };
@@ -950,6 +1222,7 @@ function deleteLocalImageFile(record) {
   return { deleted: true, missing: '' };
 }
 
+// 删除一条记录所属整组图片，并把 records 标记为 deleted。
 function deleteRecordGroupAndLocalFiles(reviewId) {
   const data = readData();
   data.records = data.records || {};
@@ -986,12 +1259,14 @@ function deleteRecordGroupAndLocalFiles(reviewId) {
   };
 }
 
+// 判断本地是否已经有可用的 VLM 结果，避免重复推理。
 function hasLocalVlmResult(localRecord) {
   if (!localRecord || !localRecord.vlm || !localRecord.vlm.status) return false;
-  if (localRecord.vlm.status === 'failed') return true;
-  return localRecord.vlm.prompt_version === 'gripper_cn_v1';
+  if (localRecord.vlm.status === 'failed') return !isRetryableFailedVlm(localRecord.vlm);
+  return VLM_COMPATIBLE_PROMPT_VERSIONS.has(localRecord.vlm.prompt_version);
 }
 
+// 启动自动补齐 VLM 结果任务。任务用立即执行的异步函数在后台跑。
 async function startAutoVlm(limit = 300, options = {}) {
   if (autoVlmJob.running) {
     return autoVlmJob;
@@ -1045,7 +1320,9 @@ async function startAutoVlm(limit = 300, options = {}) {
   return autoVlmJob;
 }
 
+// 所有 /api/ 路由的主处理函数。根据 method 和 pathname 分发到不同功能。
 async function handleApi(req, res, url) {
+  // 代理实时画面帧，前端可以通过本服务拿相机图片。
   if (req.method === 'GET' && url.pathname === '/api/realtime-proxy/frame') {
     try {
       const camera = String(url.searchParams.get('camera') || url.searchParams.get('cam') || '1');
@@ -1067,6 +1344,7 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  // 代理实时快照接口。
   if (req.method === 'GET' && url.pathname === '/api/realtime-proxy/snapshot') {
     try {
       const cam = String(url.searchParams.get('cam') || '1');
@@ -1088,6 +1366,7 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  // 获取评估记录列表。
   if (req.method === 'GET' && url.pathname === '/api/reviews') {
     const limit = normalizeLimit(url.searchParams.get('limit'));
     const records = await getMergedRecords(limit);
@@ -1095,6 +1374,7 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  // 获取单条评估记录。
   if (req.method === 'GET' && url.pathname.startsWith('/api/reviews/')) {
     const reviewId = decodeURIComponent(url.pathname.split('/').pop());
     const data = readData();
@@ -1112,6 +1392,7 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  // 获取记录列表和统计摘要，是前端主页常用的数据接口。
   if (req.method === 'GET' && url.pathname === '/api/records') {
     const limit = normalizeLimit(url.searchParams.get('limit'));
     const records = await getMergedRecords(limit);
@@ -1119,12 +1400,14 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  // 获取自定义归因原因列表。
   if (req.method === 'GET' && url.pathname === '/api/custom-reasons') {
     const data = readData();
     sendJson(res, 200, { ok: true, custom_reasons: normalizeCustomReasonOptions(data.custom_reason_options) });
     return;
   }
 
+  // 新增一条自定义归因原因。
   if (req.method === 'POST' && url.pathname === '/api/custom-reasons') {
     const body = JSON.parse(await readBody(req) || '{}');
     const branch = String(body.branch || '').trim().slice(0, 40);
@@ -1146,6 +1429,7 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  // 删除一条自定义归因原因。
   if (req.method === 'DELETE' && url.pathname === '/api/custom-reasons') {
     const body = JSON.parse(await readBody(req) || '{}');
     const branch = String(body.branch || '').trim().slice(0, 40);
@@ -1166,6 +1450,7 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  // 导入旧版 platform 目录中的历史图片和数据。
   if (req.method === 'POST' && url.pathname === '/api/import-legacy') {
     const bodyText = await readBody(req);
     const body = bodyText ? JSON.parse(bodyText) : {};
@@ -1197,6 +1482,7 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  // 启动批量 VLM 推理任务。
   if (req.method === 'POST' && url.pathname === '/api/vlm/auto-start') {
     const bodyText = await readBody(req);
     const body = bodyText ? JSON.parse(bodyText) : {};
@@ -1205,6 +1491,7 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  // 保存一组实时相机快照，并对参与评估的图片触发 VLM。
   if (req.method === 'POST' && url.pathname === '/api/realtime/save') {
     try {
       const snapshots = [];
@@ -1238,6 +1525,7 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  // 上传一张 base64 图片到本地，并触发 VLM。
   if (req.method === 'POST' && url.pathname === '/api/upload-image') {
     try {
       const body = JSON.parse(await readBody(req) || '{}');
@@ -1281,6 +1569,7 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  // 兼容 reviews 形式的图片上传接口。
   if (req.method === 'POST' && url.pathname === '/api/reviews') {
     try {
       const body = JSON.parse(await readBody(req) || '{}');
@@ -1328,20 +1617,26 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  // 查询批量 VLM 任务状态。
   if (req.method === 'GET' && url.pathname === '/api/vlm/auto-status') {
     sendJson(res, 200, { ok: true, job: autoVlmJob });
     return;
   }
 
+  // 对某条记录手动触发一次 VLM 推理。
   if (req.method === 'POST' && url.pathname.startsWith('/api/vlm/')) {
     const reviewId = decodeURIComponent(url.pathname.split('/').pop());
     try {
       const vlm = await runVlm(reviewId);
       const local = upsertLocalRecord(reviewId, { vlm });
-      sendJson(res, 200, { ok: true, record: local, vlm });
+      const ok = vlm.status !== 'failed';
+      sendJson(res, ok ? 200 : 422, { ok, record: local, vlm });
     } catch (error) {
       const vlm = {
         status: 'failed',
+        model: VLM_MODEL,
+        endpoint: VLM_ENDPOINT,
+        prompt_version: VLM_PROMPT_VERSION,
         error: error.message || String(error),
         updated_at: new Date().toISOString(),
       };
@@ -1351,6 +1646,7 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  // 保存人工标注，并尝试同步人工反馈。
   if (req.method === 'POST' && url.pathname.startsWith('/api/annotations/')) {
     const reviewId = decodeURIComponent(url.pathname.split('/').pop());
     const body = JSON.parse(await readBody(req) || '{}');
@@ -1382,6 +1678,23 @@ async function handleApi(req, res, url) {
     };
     const local = upsertLocalRecordInData(data, reviewId, { annotation });
     writeData(data);
+    try {
+      const feedbackSync = await syncPickVerifierFeedback(reviewId, local, annotation);
+      const latest = readData();
+      upsertLocalRecordInData(latest, reviewId, { feedback_sync: feedbackSync });
+      writeData(latest);
+      local.feedback_sync = feedbackSync;
+    } catch (error) {
+      const feedbackSync = {
+        status: 'failed',
+        error: error.message || String(error),
+        updated_at: new Date().toISOString(),
+      };
+      const latest = readData();
+      upsertLocalRecordInData(latest, reviewId, { feedback_sync: feedbackSync });
+      writeData(latest);
+      local.feedback_sync = feedbackSync;
+    }
     sendJson(res, 200, { ok: true, record: local });
     return;
   }
@@ -1389,10 +1702,12 @@ async function handleApi(req, res, url) {
   sendJson(res, 404, { ok: false, message: '接口不存在' });
 }
 
+// 创建 HTTP 服务。API、实时页面、静态 HTML 和本地图片都由这个服务提供。
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
     if (url.pathname.startsWith('/api/')) {
+      // 读取 local_images 目录下的图片文件。
       if (req.method === 'GET' && url.pathname.startsWith('/api/local-images/')) {
         const name = decodeURIComponent(url.pathname.split('/').pop() || '');
         const filePath = path.join(LOCAL_IMAGE_DIR, name);
@@ -1412,6 +1727,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // 代理实时页面，并把页面里的图片地址改成本服务代理地址。
     if (url.pathname === '/realtime' || url.pathname === '/realtime/') {
       const upstream = await fetchRealtimePage();
       const html = (await upstream.text())
@@ -1421,6 +1737,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // 返回评估平台前端 HTML。
     if (url.pathname === '/' || url.pathname === '/gripper_eval.html') {
       sendText(res, 200, fs.readFileSync(HTML_PATH, 'utf8'), 'text/html; charset=utf-8');
       return;
@@ -1432,6 +1749,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+// 启动服务。默认监听 0.0.0.0:5034。
 server.listen(PORT, HOST, () => {
   console.log(`夹爪评估平台已启动：http://${HOST}:${PORT}`);
 });
