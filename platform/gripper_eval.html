@@ -1103,7 +1103,7 @@
       <section class="card stack">
         <div>
           <h2>人工复核标注</h2>
-          <p class="muted">记录三分类夹爪状态，系统自动归并成夹住/未夹住并计算漏判、误判。</p>
+          <p class="muted">记录三分类人工夹爪状态，VLM 按夹住/没夹住输出，并计算漏判、误判。</p>
         </div>
 
         <div id="emptyDetail" class="muted">请先选择左侧图片记录。</div>
@@ -1434,7 +1434,13 @@
       invalid: '无效',
       recheck: '待人工标注',
     };
+    const modelResultLabelMap = {
+      grasped: '夹住',
+      not_grasped: '没夹住',
+    };
     const statusLabelMap = {
+      Grasped: '夹住',
+      Not_Grasped: '没夹住',
       Closed_Empty: '闭合，未夹住',
       Closed_Grasped: '闭合，已夹住',
       Opened_Empty: '张开，未夹住',
@@ -1606,14 +1612,14 @@
     }
 
     function localModelFromSource(record) {
-      if (record.predicted_status === 'Closed_Grasped') return 'grasped';
-      if (record.predicted_status === 'Closed_Empty' || record.predicted_status === 'Opened_Empty') return 'not_grasped';
+      if (record.predicted_status === 'Grasped' || record.predicted_status === 'Closed_Grasped') return 'grasped';
+      if (record.predicted_status === 'Not_Grasped' || record.predicted_status === 'Closed_Empty' || record.predicted_status === 'Opened_Empty') return 'not_grasped';
       return '';
     }
 
     function modelResultFromVlm(record) {
       if (!record || !record.vlm) return '';
-      return record.vlm.model_result || localModelFromSource(record);
+      return record.vlm.model_result || localModelFromSource({ predicted_status: record.vlm.predicted_status }) || localModelFromSource(record);
     }
 
     function getSelectedRecord() {
@@ -1647,7 +1653,7 @@
     }
 
     function binaryStatus(statusCode) {
-      if (statusCode === 'Closed_Grasped') return 'grasped';
+      if (statusCode === 'Grasped' || statusCode === 'Closed_Grasped') return 'grasped';
       if (statusCode === 'Not_Grasped' || statusCode === 'Closed_Empty' || statusCode === 'Opened_Empty') return 'not_grasped';
       return '';
     }
@@ -1705,15 +1711,9 @@
         return humanStatus === 'Closed_Grasped' ? '正确识别夹住' : '正确识别未夹住';
       }
       const humanBinary = binaryStatus(humanStatus);
-      const humanOpenClose = openCloseStatus(humanStatus);
-      const modelOpenClose = openCloseStatus(modelStatus);
       if (humanBinary === 'grasped' && model === 'grasped') return '正确识别夹住';
       if (humanBinary === 'grasped' && model === 'not_grasped') return '漏判';
       if (humanBinary === 'not_grasped' && model === 'grasped') return '误判';
-      if (humanBinary === 'not_grasped' && model === 'not_grasped' && humanOpenClose && modelOpenClose && humanOpenClose !== modelOpenClose) {
-        if (modelOpenClose === 'closed' && humanOpenClose === 'open') return '误判';
-        if (modelOpenClose === 'open' && humanOpenClose === 'closed') return '漏判';
-      }
       if (humanBinary === 'not_grasped' && model === 'not_grasped') return '正确识别未夹住';
       return '待人工标注';
     }
@@ -1759,7 +1759,10 @@
 
     function getModelResultText(record) {
       const state = getVlmState(record);
-      if (state === 'ok') return getPredictedStatusCn(record);
+      if (state === 'ok') {
+        const modelResult = modelResultFromVlm(record) || (record && record.model_result) || localModelFromSource(record);
+        return modelResultLabelMap[modelResult] || getPredictedStatusCn(record);
+      }
       if (state === 'failed') return 'VLM 调用失败';
       return '等待 VLM 推理';
     }
@@ -2346,7 +2349,7 @@
       if (!modelStatus) return '状态一致性：等待模型判断状态。';
       if (humanStatus === modelStatus) return '状态一致性：完全一致。';
       if (binaryStatus(humanStatus) && binaryStatus(humanStatus) === binaryStatus(modelStatus)) {
-        return '状态一致性：夹住判断一致，但开合状态误判。';
+        return '状态一致性：夹住判断一致。';
       }
       return '状态一致性：夹住判断不一致。';
     }
