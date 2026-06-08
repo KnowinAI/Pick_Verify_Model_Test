@@ -551,6 +551,54 @@
       font-size: 12px;
       font-weight: 500;
     }
+    .object-tag-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .object-tag-label-row .field-title {
+      flex: 1;
+      min-width: 0;
+    }
+    .object-tag-autofill {
+      flex: 0 0 auto;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+    }
+    .object-tag-tools {
+      display: grid;
+      gap: 8px;
+      margin-top: -2px;
+    }
+    .object-tag-quick-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .object-tag-quick-tags:empty {
+      display: none;
+    }
+    .object-tag-chip {
+      width: auto;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 5px 10px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 750;
+    }
+    .object-tag-chip:hover,
+    .object-tag-chip.is-active {
+      border-color: #9db5ff;
+      color: var(--accent);
+      background: #eef4ff;
+    }
+    .object-tag-assist {
+      min-height: 18px;
+    }
     select, textarea, input[type="text"] {
       width: 100%;
       border: 1px solid var(--line);
@@ -1132,7 +1180,7 @@
               <div class="form-section primary">
                 <div class="form-section-title">结果确认</div>
                 <div class="comparison-grid">
-                  <label class="status-card human">
+                  <div class="status-card human">
                     <span class="status-card-title">
                       实测结果
                       <span class="status-card-tag">人工选择</span>
@@ -1144,10 +1192,20 @@
                       <option value="open_not_grasped">张开，未夹住</option>
                       <option value="unknown">无法判断</option>
                     </select>
-                    <span class="field-title">物品标签 <span class="field-hint">用于筛选归类</span></span>
+                    <div class="object-tag-label-row">
+                      <span class="field-title">物品标签 <span class="field-hint">用于筛选归类</span></span>
+                      <label class="inline-check object-tag-autofill" title="开启后，未标注图片会自动填入最近一次使用的物品标签">
+                        <input id="objectTagAutofill" type="checkbox">
+                        连续沿用
+                      </label>
+                    </div>
                     <input id="objectTag" type="text" list="objectTagSuggestions" maxlength="32" placeholder="例如：钥匙扣、透明件、软物体">
                     <datalist id="objectTagSuggestions"></datalist>
-                  </label>
+                    <div class="object-tag-tools">
+                      <div id="objectTagQuickTags" class="object-tag-quick-tags"></div>
+                      <div id="objectTagAssist" class="field-hint object-tag-assist"></div>
+                    </div>
+                  </div>
 
                   <div class="status-card model">
                     <span class="status-card-title">
@@ -1174,16 +1232,7 @@
               </div>
 
               <div class="form-section">
-                <div class="form-section-title">样本与评估归因</div>
-                <label class="field">
-                  <span class="field-title">是否有效样本 <span class="field-hint">默认有效</span></span>
-                  <select id="sampleValidity">
-                    <option value="valid">有效</option>
-                    <option value="invalid">无效</option>
-                    <option value="recheck">待人工标注</option>
-                  </select>
-                </label>
-
+                <div class="form-section-title">评估归因</div>
                 <div id="attributionPrompt" class="attribution-prompt">当前为异常评估结论，请补充归因分支和具体原因。</div>
                 <label id="attributionBranchField" class="field">
                   <span class="field-title">归因分支 <span class="field-hint">评估异常时填写</span></span>
@@ -1449,6 +1498,11 @@
     const RECORD_FETCH_LIMIT = 'all';
     const RECORD_PAGE_SIZE = 120;
     const LEGACY_IMPORT_PATH_KEY = 'pickVerifyLegacyImportPath';
+    const LAST_OBJECT_TAG_KEY = 'pickVerifyLastObjectTag';
+    const RECENT_OBJECT_TAGS_KEY = 'pickVerifyRecentObjectTags';
+    const OBJECT_TAG_AUTOFILL_KEY = 'pickVerifyObjectTagAutofill';
+    const DEFAULT_SAMPLE_VALIDITY = 'valid';
+    const SELECTED_AUTO_VLM_DELAY_MS = 250;
     const MATRIX_CATEGORIES = ['正确识别夹住', '漏判', '误判', '正确识别未夹住'];
     const SUMMARY_CATEGORIES = [
       ...MATRIX_CATEGORIES,
@@ -1474,7 +1528,12 @@
     let currentListPage = 1;
     let lastObjectTagStats = [];
     let selectedObjectTagStatsTag = '';
+    let activeObjectTag = '';
+    let selectedAutoVlmTimer = null;
     const batchSelectedIds = new Set();
+    const pendingObjectTagsByRecordId = new Map();
+    const selectedAutoVlmRunningIds = new Set();
+    const selectedAutoVlmAttemptedIds = new Set();
 
     const $ = (id) => document.getElementById(id);
     const pct = (value) => value === null || value === undefined ? '-' : `${(value * 100).toFixed(1)}%`;
@@ -1529,6 +1588,85 @@
       return safe(record && record.annotation && record.annotation.object_tag, '').trim();
     }
 
+    function getSampleValidity(record = getSelectedRecord()) {
+      return safe(record && record.annotation && record.annotation.sample_validity, DEFAULT_SAMPLE_VALIDITY) || DEFAULT_SAMPLE_VALIDITY;
+    }
+
+    function getStoredJsonArray(key) {
+      try {
+        const value = JSON.parse(localStorage.getItem(key) || '[]');
+        return Array.isArray(value) ? value : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function uniqueTags(tags) {
+      const seen = new Set();
+      return tags
+        .map((tag) => safe(tag, '').trim())
+        .filter((tag) => {
+          if (!tag || seen.has(tag)) return false;
+          seen.add(tag);
+          return true;
+        });
+    }
+
+    function getLastObjectTag() {
+      if (activeObjectTag) return activeObjectTag;
+      const stored = safe(localStorage.getItem(LAST_OBJECT_TAG_KEY), '').trim();
+      if (stored) return stored;
+      const recentTaggedRecord = records.find((record) => getObjectTag(record));
+      return recentTaggedRecord ? getObjectTag(recentTaggedRecord) : '';
+    }
+
+    function rememberObjectTag(tag) {
+      const normalized = safe(tag, '').trim();
+      if (!normalized) return;
+      activeObjectTag = normalized;
+      localStorage.setItem(LAST_OBJECT_TAG_KEY, normalized);
+      const recent = uniqueTags([normalized, ...getStoredJsonArray(RECENT_OBJECT_TAGS_KEY)]).slice(0, 8);
+      localStorage.setItem(RECENT_OBJECT_TAGS_KEY, JSON.stringify(recent));
+    }
+
+    function isObjectTagAutofillEnabled() {
+      return localStorage.getItem(OBJECT_TAG_AUTOFILL_KEY) !== '0';
+    }
+
+    function setObjectTagAutofill(enabled) {
+      localStorage.setItem(OBJECT_TAG_AUTOFILL_KEY, enabled ? '1' : '0');
+      renderObjectTagShortcuts();
+    }
+
+    function applyObjectTagValue(tag) {
+      const normalized = safe(tag, '').trim();
+      $('objectTag').value = normalized;
+      setPendingObjectTag(selectedId, normalized);
+      rememberObjectTag(normalized);
+      formDirty = true;
+      renderObjectTagShortcuts();
+    }
+
+    function setPendingObjectTag(recordId, tag) {
+      const normalized = safe(tag, '').trim();
+      if (!recordId) return normalized;
+      if (normalized) {
+        pendingObjectTagsByRecordId.set(recordId, normalized);
+      } else {
+        pendingObjectTagsByRecordId.delete(recordId);
+      }
+      return normalized;
+    }
+
+    function carryObjectTagToCurrentForm(tag) {
+      const normalized = setPendingObjectTag(selectedId, tag);
+      if (!normalized) return;
+      $('objectTag').value = normalized;
+      rememberObjectTag(normalized);
+      formDirty = true;
+      renderObjectTagShortcuts();
+    }
+
     function clearReasonFilter() {
       reasonFilterCategory = '';
       reasonFilterReason = '';
@@ -1545,6 +1683,58 @@
     function getAvailableObjectTags() {
       return Array.from(new Set(records.filter(shouldEvaluateRecord).map(getObjectTag).filter(Boolean)))
         .sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
+    }
+
+    function getObjectTagShortcuts() {
+      return uniqueTags([
+        getLastObjectTag(),
+        ...getStoredJsonArray(RECENT_OBJECT_TAGS_KEY),
+        ...getAvailableObjectTags(),
+      ]).slice(0, 6);
+    }
+
+    function renderObjectTagShortcuts() {
+      const container = $('objectTagQuickTags');
+      const assist = $('objectTagAssist');
+      if (!container || !assist) return;
+      const current = $('objectTag').value.trim();
+      const autofillToggle = $('objectTagAutofill');
+      const autofillEnabled = isObjectTagAutofillEnabled();
+      if (autofillToggle) autofillToggle.checked = autofillEnabled;
+      const tags = getObjectTagShortcuts();
+      container.innerHTML = tags.map((tag) => `
+        <button
+          type="button"
+          class="object-tag-chip${tag === current ? ' is-active' : ''}"
+          data-object-tag-shortcut="${escapeHtml(tag)}"
+          title="使用标签：${escapeHtml(tag)}"
+        >${escapeHtml(tag)}</button>
+      `).join('');
+      container.querySelectorAll('button[data-object-tag-shortcut]').forEach((button) => {
+        button.onclick = () => {
+          applyObjectTagValue(button.dataset.objectTagShortcut || '');
+        };
+      });
+      const lastTag = getLastObjectTag();
+      if (!autofillEnabled) {
+        assist.textContent = '连续沿用已关闭；当前图片需要单独填写标签。';
+      } else if (current && lastTag && current === lastTag) {
+        assist.textContent = `已沿用标签：${lastTag}`;
+      } else if (lastTag) {
+        assist.textContent = `后续未标注图片会自动填入：${lastTag}`;
+      } else {
+        assist.textContent = '输入或点选一次标签后，后续未标注图片会自动沿用。';
+      }
+    }
+
+    function getDefaultObjectTag(record) {
+      const annotationTag = getObjectTag(record);
+      if (annotationTag) return annotationTag;
+      if (isAnnotated(record)) return '';
+      if (record && pendingObjectTagsByRecordId.has(record.id)) {
+        return pendingObjectTagsByRecordId.get(record.id);
+      }
+      return isObjectTagAutofillEnabled() ? getLastObjectTag() : '';
     }
 
     function renderTagFilter() {
@@ -1633,6 +1823,22 @@
       }
       if (!metadata.capture_group_id) return null;
       return records.find((item) => item.id !== record.id && item.source_metadata && item.source_metadata.capture_group_id === metadata.capture_group_id);
+    }
+
+    function getVlmTargetForRecord(record) {
+      if (!record) return null;
+      return shouldEvaluateRecord(record) ? record : findPairedRecord(record);
+    }
+
+    function hasPendingVlmResult(record) {
+      return Boolean(
+        record &&
+        shouldEvaluateRecord(record) &&
+        getVlmState(record) === 'pending' &&
+        !modelResultFromVlm(record) &&
+        !record.model_result &&
+        !localModelFromSource(record),
+      );
     }
 
     function getSelectedModelResult() {
@@ -2154,7 +2360,7 @@
       } catch (error) {
         $('customReasonMessage').textContent = error.message || String(error);
       } finally {
-        updateAttributionControls(classify($('humanResult').value, $('modelResult').value || getSelectedModelResult(), $('sampleValidity').value));
+        updateAttributionControls(classify($('humanResult').value, $('modelResult').value || getSelectedModelResult(), getSampleValidity()));
       }
     }
 
@@ -2183,7 +2389,7 @@
       } catch (error) {
         $('customReasonMessage').textContent = error.message || String(error);
       } finally {
-        updateAttributionControls(classify($('humanResult').value, $('modelResult').value || getSelectedModelResult(), $('sampleValidity').value));
+        updateAttributionControls(classify($('humanResult').value, $('modelResult').value || getSelectedModelResult(), getSampleValidity()));
       }
     }
 
@@ -2261,34 +2467,39 @@
       const record = records.find((item) => item.id === selectedId);
       $('emptyDetail').classList.toggle('hidden', Boolean(record));
       $('detailPanel').classList.toggle('hidden', !record);
-      if (!record) return;
+      if (!record) {
+        clearTimeout(selectedAutoVlmTimer);
+        return;
+      }
 
       const annotation = record.annotation || {};
       const keepUnsavedForm = formDirty && activeDetailRecordId === selectedId;
+      const vlmTarget = getVlmTargetForRecord(record);
       activeDetailRecordId = selectedId;
       $('previewImage').src = getImageUrl(record);
       $('pairedPreview').classList.remove('show');
       $('pairedPreviewImage').removeAttribute('src');
       $('modelResult').value = modelResultFromVlm(record) || record.model_result || localModelFromSource(record) || annotation.model_result || 'no_result';
       $('modelResultText').textContent = getModelResultText(record);
-      $('runVlmButton').disabled = !shouldEvaluateRecord(record) && !findPairedRecord(record);
+      $('runVlmButton').disabled = !vlmTarget || !shouldEvaluateRecord(vlmTarget) || selectedAutoVlmRunningIds.has(vlmTarget.id);
       if (!keepUnsavedForm) {
         $('humanResult').value = annotation.human_result === 'not_grasped' ? '' : (annotation.human_result || '');
-        $('sampleValidity').value = annotation.sample_validity || 'valid';
-        $('objectTag').value = annotation.object_tag || '';
+        $('objectTag').value = getDefaultObjectTag(record);
         $('attributionBranch').value = annotation.attribution_branch || '';
         renderReasons($('attributionBranch').value, annotation.attribution_reason || '');
         $('customReasonInput').value = '';
         $('customReasonMessage').textContent = '';
         $('note').value = annotation.note || '';
       }
+      renderObjectTagShortcuts();
       renderClassification();
+      maybeAutoRunSelectedVlm();
     }
 
     function renderClassification() {
       const humanValue = $('humanResult').value;
       const modelValue = $('modelResult').value || getSelectedModelResult();
-      const category = classify(humanValue, modelValue, $('sampleValidity').value);
+      const category = classify(humanValue, modelValue, getSampleValidity());
       $('classificationText').textContent = category;
       $('classificationBadge').textContent = category;
       $('classificationBadge').className = `badge ${badgeClass(category)}`;
@@ -2851,37 +3062,92 @@
       }
     }
 
-    async function runSelectedVlm() {
+    function selectedRecordUsesVlmTarget(targetId) {
       const current = getSelectedRecord();
+      const target = getVlmTargetForRecord(current);
+      return Boolean(target && target.id === targetId);
+    }
+
+    function maybeAutoRunSelectedVlm() {
+      clearTimeout(selectedAutoVlmTimer);
+      const current = getSelectedRecord();
+      const target = getVlmTargetForRecord(current);
+      if (
+        !target ||
+        !hasPendingVlmResult(target) ||
+        selectedAutoVlmRunningIds.has(target.id) ||
+        selectedAutoVlmAttemptedIds.has(target.id)
+      ) {
+        return;
+      }
+      selectedAutoVlmTimer = setTimeout(() => {
+        const latestCurrent = getSelectedRecord();
+        const latestTarget = getVlmTargetForRecord(latestCurrent);
+        if (
+          !latestTarget ||
+          latestTarget.id !== target.id ||
+          !hasPendingVlmResult(latestTarget) ||
+          selectedAutoVlmRunningIds.has(latestTarget.id) ||
+          selectedAutoVlmAttemptedIds.has(latestTarget.id)
+        ) {
+          return;
+        }
+        selectedAutoVlmAttemptedIds.add(latestTarget.id);
+        runSelectedVlm({ automatic: true, sourceRecord: latestCurrent }).catch((error) => {
+          if (selectedRecordUsesVlmTarget(latestTarget.id)) {
+            $('vlmMessage').textContent = error.message || String(error);
+            $('vlmMessage').className = 'message error';
+          }
+        });
+      }, SELECTED_AUTO_VLM_DELAY_MS);
+    }
+
+    async function runSelectedVlm(options = {}) {
+      const automatic = Boolean(options.automatic);
+      const current = options.sourceRecord || getSelectedRecord();
       if (!current) return;
-      const target = shouldEvaluateRecord(current)
-        ? current
-        : findPairedRecord(current);
+      const target = getVlmTargetForRecord(current);
       if (!target || !shouldEvaluateRecord(target)) {
         $('vlmMessage').textContent = '当前图片是参考图，且没有找到同组 cam1 评估图。';
         $('vlmMessage').className = 'message error';
         return;
       }
 
-      $('runVlmButton').disabled = true;
-      $('vlmMessage').textContent = `人工调用中：cam${safe(target.source_metadata && target.source_metadata.camera_id, '未知')}...`;
-      $('vlmMessage').className = 'message';
+      const targetId = target.id;
+      const messagePrefix = automatic ? '自动调用' : '人工调用';
+      selectedAutoVlmRunningIds.add(targetId);
+      if (selectedRecordUsesVlmTarget(targetId)) {
+        $('runVlmButton').disabled = true;
+        $('vlmMessage').textContent = `${messagePrefix}中：cam${safe(target.source_metadata && target.source_metadata.camera_id, '未知')}...`;
+        $('vlmMessage').className = 'message';
+      }
       try {
-        const response = await fetch(`/api/vlm/${encodeURIComponent(target.id)}`, { method: 'POST' });
+        const response = await fetch(`/api/vlm/${encodeURIComponent(targetId)}`, { method: 'POST' });
         const data = await response.json();
         if (!response.ok || !data.ok) {
           throw new Error((data.vlm && data.vlm.error) || data.message || '模型推理失败');
         }
-        $('vlmMessage').textContent = '人工调用完成，模型结果已更新';
-        $('vlmMessage').className = 'message success';
-        formDirty = false;
-        selectedId = target.id;
+        if (selectedRecordUsesVlmTarget(targetId)) {
+          $('vlmMessage').textContent = `${messagePrefix}完成，模型结果已更新`;
+          $('vlmMessage').className = 'message success';
+        }
+        if (!automatic) {
+          formDirty = false;
+          selectedId = targetId;
+        }
         await loadRecords(true);
       } catch (error) {
-        $('vlmMessage').textContent = error.message || String(error);
-        $('vlmMessage').className = 'message error';
+        selectedAutoVlmAttemptedIds.add(targetId);
+        if (selectedRecordUsesVlmTarget(targetId)) {
+          $('vlmMessage').textContent = error.message || String(error);
+          $('vlmMessage').className = 'message error';
+        }
+        await loadRecords(true).catch(() => null);
       } finally {
-        $('runVlmButton').disabled = false;
+        selectedAutoVlmRunningIds.delete(targetId);
+        if (selectedRecordUsesVlmTarget(targetId)) {
+          $('runVlmButton').disabled = false;
+        }
         renderDetail();
       }
     }
@@ -2891,7 +3157,7 @@
       if (!selectedId) return;
       const targetId = selectedId;
       const selectedRecord = getSelectedRecord();
-      const category = classify($('humanResult').value, $('modelResult').value || getSelectedModelResult(), $('sampleValidity').value);
+      const category = classify($('humanResult').value, $('modelResult').value || getSelectedModelResult(), getSampleValidity(selectedRecord));
       const shouldSaveAttribution = needsAttribution(category);
       const selectedReasons = getSelectedReasons();
       if (shouldSaveAttribution && !$('attributionBranch').value) {
@@ -2908,7 +3174,7 @@
       const body = {
         human_result: $('humanResult').value,
         model_result: $('modelResult').value || getSelectedModelResult(),
-        sample_validity: $('sampleValidity').value,
+        sample_validity: getSampleValidity(selectedRecord),
         object_tag: $('objectTag').value.trim(),
         attribution_branch: shouldSaveAttribution ? $('attributionBranch').value : '',
         attribution_reason: shouldSaveAttribution ? selectedReasons.join('、') : '',
@@ -2958,12 +3224,16 @@
       }
       $('saveMessage').textContent = '已保存';
       $('saveMessage').className = 'message success';
+      rememberObjectTag(body.object_tag);
+      pendingObjectTagsByRecordId.delete(targetId);
       formDirty = false;
       await loadRecords(true);
       if ($('autoNext').checked) {
         const nextId = getNextUnlabeledId(targetId);
         if (nextId && nextId !== targetId) {
+          setPendingObjectTag(nextId, body.object_tag);
           selectRecord(nextId);
+          carryObjectTagToCurrentForm(body.object_tag);
           $('saveMessage').textContent = '已保存，已跳到下一张未标注';
         } else {
           $('saveMessage').textContent = '已保存，当前没有剩余未标注图片';
@@ -3313,12 +3583,27 @@
       renderReasons($('attributionBranch').value, getSelectedReasons().join('、'));
       renderClassification();
     };
-    $('sampleValidity').onchange = () => {
-      formDirty = true;
-      renderClassification();
-    };
     $('objectTag').oninput = () => {
       formDirty = true;
+      setPendingObjectTag(selectedId, $('objectTag').value);
+      rememberObjectTag($('objectTag').value);
+      renderObjectTagShortcuts();
+    };
+    $('objectTag').onchange = () => {
+      setPendingObjectTag(selectedId, $('objectTag').value);
+      rememberObjectTag($('objectTag').value);
+      renderObjectTagShortcuts();
+    };
+    $('objectTagAutofill').onchange = () => {
+      const enabled = $('objectTagAutofill').checked;
+      setObjectTagAutofill(enabled);
+      const record = getSelectedRecord();
+      const savedTag = getObjectTag(record);
+      if (!record || savedTag) return;
+      const pendingTag = pendingObjectTagsByRecordId.get(selectedId) || '';
+      const nextValue = enabled ? (pendingTag || getLastObjectTag()) : pendingTag;
+      $('objectTag').value = nextValue;
+      renderObjectTagShortcuts();
     };
     $('attributionBranch').onchange = () => {
       formDirty = true;

@@ -2,6 +2,22 @@
 
 本仓库是从 `D:\fuwu\gripper-eval\platform` 迁移出的独立评估工作台副本，默认运行在 `5034` 端口，不会修改原项目目录。
 
+## 项目结构
+
+```text
+.
+├─ package.json                 # npm 启动和导入脚本入口
+├─ start_lan_5034.bat           # 局域网部署启动器
+├─ scripts/                     # 旧平台数据导入工具
+└─ platform/
+   ├─ gripper_eval.html         # 前端标注工作台
+   ├─ gripper_eval_server.js    # Node.js 服务端
+   ├─ gripper_eval_data.json    # 当前标注/VLM 数据
+   └─ local_images/             # 当前数据引用的本地图片
+```
+
+`platform/local_images` 里的图片会被 `gripper_eval_data.json` 引用，不能按“临时文件”批量删除。可清理的通常是日志、导入备份、HTML 临时备份等已在 `.gitignore` 中列出的运行产物。
+
 ## 启动
 
 ```powershell

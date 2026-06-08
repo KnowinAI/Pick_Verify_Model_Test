@@ -89820,7 +89820,7 @@
         "predicted_status": null,
         "review_path": ""
       },
-      "updated_at": "2026-06-03T08:23:13.498Z",
+      "updated_at": "2026-06-08T09:49:20.816Z",
       "vlm": {
         "status": "completed",
         "model": "pick_verifier_1200_merged",
@@ -89831,9 +89831,9 @@
         "model_result": "not_grasped",
         "raw_model_output": "N",
         "raw_response": {
-          "id": "chatcmpl-pred_766813511327405b8ba4184ea26c4e99",
+          "id": "chatcmpl-pred_e7878ed438364e238f4105943470f5db",
           "object": "chat.completion",
-          "created": 1780474994,
+          "created": 1780912160,
           "model": "pick_verifier_1200_merged",
           "choices": [
             {
@@ -89851,17 +89851,571 @@
             "total_tokens": 0
           },
           "pick_verifier": {
-            "prediction_id": "pred_766813511327405b8ba4184ea26c4e99",
-            "request_id": "req_266af78ed987419f8d1f076eb674a3dc",
+            "prediction_id": "pred_e7878ed438364e238f4105943470f5db",
+            "request_id": "req_05b3a580513a4b0d9b58d5107eb43b49",
             "label": "N",
             "state": "not_grasped",
             "raw_output": "N"
           }
         },
-        "pick_verifier_prediction_id": "pred_766813511327405b8ba4184ea26c4e99",
-        "pick_verifier_request_id": "req_266af78ed987419f8d1f076eb674a3dc",
+        "pick_verifier_prediction_id": "pred_e7878ed438364e238f4105943470f5db",
+        "pick_verifier_request_id": "req_05b3a580513a4b0d9b58d5107eb43b49",
         "error": "",
-        "updated_at": "2026-06-03T08:23:13.486Z"
+        "updated_at": "2026-06-08T09:49:20.804Z"
+      }
+    },
+    "local_realtime_cam0_20260608093903_2k8m9h": {
+      "local_source": {
+        "id": "local_realtime_cam0_20260608093903_2k8m9h",
+        "source_id": "realtime_cam0_20260608093903_2k8m9h.jpg",
+        "original_filename": "realtime_cam0_20260608093903_2k8m9h.jpg",
+        "stored_filename": "realtime_cam0_20260608093903_2k8m9h.jpg",
+        "image_url": "/api/local-images/realtime_cam0_20260608093903_2k8m9h.jpg",
+        "content_type": "image/jpeg",
+        "created_at": "2026-06-08T09:39:03.815Z",
+        "source_metadata": {
+          "camera_id": 0,
+          "camera_label": "right",
+          "source": "9002_snapshot",
+          "capture_group_id": "realtime_group_20260608093903_dh59pr",
+          "evaluate": false,
+          "group_role": "reference",
+          "group_record_ids": [
+            "local_realtime_cam0_20260608093903_2k8m9h",
+            "local_realtime_cam1_20260608093903_1lfz0s"
+          ],
+          "paired_record_id": "local_realtime_cam1_20260608093903_1lfz0s"
+        },
+        "vlm_status": "pending",
+        "predicted_status": null,
+        "review_path": ""
+      },
+      "updated_at": "2026-06-08T09:41:17.727Z",
+      "deleted": true,
+      "deleted_at": "2026-06-08T09:41:17.727Z"
+    },
+    "local_realtime_cam1_20260608093903_1lfz0s": {
+      "local_source": {
+        "id": "local_realtime_cam1_20260608093903_1lfz0s",
+        "source_id": "realtime_cam1_20260608093903_1lfz0s.jpg",
+        "original_filename": "realtime_cam1_20260608093903_1lfz0s.jpg",
+        "stored_filename": "realtime_cam1_20260608093903_1lfz0s.jpg",
+        "image_url": "/api/local-images/realtime_cam1_20260608093903_1lfz0s.jpg",
+        "content_type": "image/jpeg",
+        "created_at": "2026-06-08T09:39:03.881Z",
+        "source_metadata": {
+          "camera_id": 1,
+          "camera_label": "left",
+          "source": "9002_snapshot",
+          "capture_group_id": "realtime_group_20260608093903_dh59pr",
+          "evaluate": true,
+          "group_role": "evaluation",
+          "group_record_ids": [
+            "local_realtime_cam0_20260608093903_2k8m9h",
+            "local_realtime_cam1_20260608093903_1lfz0s"
+          ],
+          "paired_record_id": "local_realtime_cam0_20260608093903_2k8m9h"
+        },
+        "vlm_status": "pending",
+        "predicted_status": null,
+        "review_path": ""
+      },
+      "updated_at": "2026-06-08T09:41:17.727Z",
+      "vlm": {
+        "status": "completed",
+        "model": "pick_verifier_1200_merged",
+        "endpoint": "http://101.132.143.105:5087/v1/chat/completions",
+        "prompt_version": "gripper_gn_binary_v1",
+        "predicted_status": "Not_Grasped",
+        "predicted_status_cn": "没夹住",
+        "model_result": "not_grasped",
+        "raw_model_output": "N",
+        "raw_response": {
+          "id": "chatcmpl-pred_cd9094b960cc4a51827cf4a30e02b23d",
+          "object": "chat.completion",
+          "created": 1780911544,
+          "model": "pick_verifier_1200_merged",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "N"
+              },
+              "finish_reason": "stop"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0
+          },
+          "pick_verifier": {
+            "prediction_id": "pred_cd9094b960cc4a51827cf4a30e02b23d",
+            "request_id": "req_b08b233af94c47aba82d9baa6fc0ee4a",
+            "label": "N",
+            "state": "not_grasped",
+            "raw_output": "N"
+          }
+        },
+        "pick_verifier_prediction_id": "pred_cd9094b960cc4a51827cf4a30e02b23d",
+        "pick_verifier_request_id": "req_b08b233af94c47aba82d9baa6fc0ee4a",
+        "error": "",
+        "updated_at": "2026-06-08T09:39:04.683Z"
+      },
+      "deleted": true,
+      "deleted_at": "2026-06-08T09:41:17.727Z"
+    },
+    "local_realtime_cam0_20260608093908_ikatms": {
+      "local_source": {
+        "id": "local_realtime_cam0_20260608093908_ikatms",
+        "source_id": "realtime_cam0_20260608093908_ikatms.jpg",
+        "original_filename": "realtime_cam0_20260608093908_ikatms.jpg",
+        "stored_filename": "realtime_cam0_20260608093908_ikatms.jpg",
+        "image_url": "/api/local-images/realtime_cam0_20260608093908_ikatms.jpg",
+        "content_type": "image/jpeg",
+        "created_at": "2026-06-08T09:39:08.313Z",
+        "source_metadata": {
+          "camera_id": 0,
+          "camera_label": "right",
+          "source": "9002_snapshot",
+          "capture_group_id": "realtime_group_20260608093908_9nhdzy",
+          "evaluate": false,
+          "group_role": "reference",
+          "group_record_ids": [
+            "local_realtime_cam0_20260608093908_ikatms",
+            "local_realtime_cam1_20260608093908_fpfiud"
+          ],
+          "paired_record_id": "local_realtime_cam1_20260608093908_fpfiud"
+        },
+        "vlm_status": "pending",
+        "predicted_status": null,
+        "review_path": ""
+      },
+      "updated_at": "2026-06-08T09:41:16.003Z",
+      "deleted": true,
+      "deleted_at": "2026-06-08T09:41:16.003Z"
+    },
+    "local_realtime_cam1_20260608093908_fpfiud": {
+      "local_source": {
+        "id": "local_realtime_cam1_20260608093908_fpfiud",
+        "source_id": "realtime_cam1_20260608093908_fpfiud.jpg",
+        "original_filename": "realtime_cam1_20260608093908_fpfiud.jpg",
+        "stored_filename": "realtime_cam1_20260608093908_fpfiud.jpg",
+        "image_url": "/api/local-images/realtime_cam1_20260608093908_fpfiud.jpg",
+        "content_type": "image/jpeg",
+        "created_at": "2026-06-08T09:39:08.386Z",
+        "source_metadata": {
+          "camera_id": 1,
+          "camera_label": "left",
+          "source": "9002_snapshot",
+          "capture_group_id": "realtime_group_20260608093908_9nhdzy",
+          "evaluate": true,
+          "group_role": "evaluation",
+          "group_record_ids": [
+            "local_realtime_cam0_20260608093908_ikatms",
+            "local_realtime_cam1_20260608093908_fpfiud"
+          ],
+          "paired_record_id": "local_realtime_cam0_20260608093908_ikatms"
+        },
+        "vlm_status": "pending",
+        "predicted_status": null,
+        "review_path": ""
+      },
+      "updated_at": "2026-06-08T09:41:16.003Z",
+      "vlm": {
+        "status": "completed",
+        "model": "pick_verifier_1200_merged",
+        "endpoint": "http://101.132.143.105:5087/v1/chat/completions",
+        "prompt_version": "gripper_gn_binary_v1",
+        "predicted_status": "Not_Grasped",
+        "predicted_status_cn": "没夹住",
+        "model_result": "not_grasped",
+        "raw_model_output": "N",
+        "raw_response": {
+          "id": "chatcmpl-pred_d5d0ec4afb4642738cfc29264a3958f1",
+          "object": "chat.completion",
+          "created": 1780911548,
+          "model": "pick_verifier_1200_merged",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "N"
+              },
+              "finish_reason": "stop"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0
+          },
+          "pick_verifier": {
+            "prediction_id": "pred_d5d0ec4afb4642738cfc29264a3958f1",
+            "request_id": "req_905e7608eba145cbb040d672b26b18cb",
+            "label": "N",
+            "state": "not_grasped",
+            "raw_output": "N"
+          }
+        },
+        "pick_verifier_prediction_id": "pred_d5d0ec4afb4642738cfc29264a3958f1",
+        "pick_verifier_request_id": "req_905e7608eba145cbb040d672b26b18cb",
+        "error": "",
+        "updated_at": "2026-06-08T09:39:09.013Z"
+      },
+      "annotation": {
+        "human_result": "grasped",
+        "model_result": "not_grasped",
+        "sample_validity": "valid",
+        "attribution_branch": "视觉感知",
+        "attribution_reason": "闭合夹住，物品在夹爪中间",
+        "note": "",
+        "object_tag": "手机壳-夹爪3-有光",
+        "updated_at": "2026-06-08T09:39:51.590Z"
+      },
+      "feedback_sync": {
+        "status": "completed",
+        "feedback_id": "fb_f0adc901583f4d969430b0b8da3f2688",
+        "endpoint": "http://101.132.143.105:5087/api/pick-verifier/feedback",
+        "updated_at": "2026-06-08T09:39:51.850Z"
+      },
+      "deleted": true,
+      "deleted_at": "2026-06-08T09:41:16.003Z"
+    },
+    "local_realtime_cam0_20260608094013_s39k1c": {
+      "local_source": {
+        "id": "local_realtime_cam0_20260608094013_s39k1c",
+        "source_id": "realtime_cam0_20260608094013_s39k1c.jpg",
+        "original_filename": "realtime_cam0_20260608094013_s39k1c.jpg",
+        "stored_filename": "realtime_cam0_20260608094013_s39k1c.jpg",
+        "image_url": "/api/local-images/realtime_cam0_20260608094013_s39k1c.jpg",
+        "content_type": "image/jpeg",
+        "created_at": "2026-06-08T09:40:13.573Z",
+        "source_metadata": {
+          "camera_id": 0,
+          "camera_label": "right",
+          "source": "9002_snapshot",
+          "capture_group_id": "realtime_group_20260608094013_ma8ocm",
+          "evaluate": false,
+          "group_role": "reference",
+          "group_record_ids": [
+            "local_realtime_cam0_20260608094013_s39k1c",
+            "local_realtime_cam1_20260608094013_led2eu"
+          ],
+          "paired_record_id": "local_realtime_cam1_20260608094013_led2eu"
+        },
+        "vlm_status": "pending",
+        "predicted_status": null,
+        "review_path": ""
+      },
+      "updated_at": "2026-06-08T09:41:13.949Z",
+      "deleted": true,
+      "deleted_at": "2026-06-08T09:41:13.949Z"
+    },
+    "local_realtime_cam1_20260608094013_led2eu": {
+      "local_source": {
+        "id": "local_realtime_cam1_20260608094013_led2eu",
+        "source_id": "realtime_cam1_20260608094013_led2eu.jpg",
+        "original_filename": "realtime_cam1_20260608094013_led2eu.jpg",
+        "stored_filename": "realtime_cam1_20260608094013_led2eu.jpg",
+        "image_url": "/api/local-images/realtime_cam1_20260608094013_led2eu.jpg",
+        "content_type": "image/jpeg",
+        "created_at": "2026-06-08T09:40:13.639Z",
+        "source_metadata": {
+          "camera_id": 1,
+          "camera_label": "left",
+          "source": "9002_snapshot",
+          "capture_group_id": "realtime_group_20260608094013_ma8ocm",
+          "evaluate": true,
+          "group_role": "evaluation",
+          "group_record_ids": [
+            "local_realtime_cam0_20260608094013_s39k1c",
+            "local_realtime_cam1_20260608094013_led2eu"
+          ],
+          "paired_record_id": "local_realtime_cam0_20260608094013_s39k1c"
+        },
+        "vlm_status": "pending",
+        "predicted_status": null,
+        "review_path": ""
+      },
+      "updated_at": "2026-06-08T09:41:13.949Z",
+      "vlm": {
+        "status": "completed",
+        "model": "pick_verifier_1200_merged",
+        "endpoint": "http://101.132.143.105:5087/v1/chat/completions",
+        "prompt_version": "gripper_gn_binary_v1",
+        "predicted_status": "Not_Grasped",
+        "predicted_status_cn": "没夹住",
+        "model_result": "not_grasped",
+        "raw_model_output": "N",
+        "raw_response": {
+          "id": "chatcmpl-pred_ecf54bb4e0db4903b814f3ce4d70eb4c",
+          "object": "chat.completion",
+          "created": 1780911617,
+          "model": "pick_verifier_1200_merged",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "N"
+              },
+              "finish_reason": "stop"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0
+          },
+          "pick_verifier": {
+            "prediction_id": "pred_ecf54bb4e0db4903b814f3ce4d70eb4c",
+            "request_id": "req_5bc50af611bf4a4caee4f4835b678cb4",
+            "label": "N",
+            "state": "not_grasped",
+            "raw_output": "N"
+          }
+        },
+        "pick_verifier_prediction_id": "pred_ecf54bb4e0db4903b814f3ce4d70eb4c",
+        "pick_verifier_request_id": "req_5bc50af611bf4a4caee4f4835b678cb4",
+        "error": "",
+        "updated_at": "2026-06-08T09:40:17.070Z"
+      },
+      "annotation": {
+        "human_result": "closed_not_grasped",
+        "model_result": "not_grasped",
+        "sample_validity": "valid",
+        "attribution_branch": "",
+        "attribution_reason": "",
+        "note": "",
+        "object_tag": "手机壳-夹爪3-有光",
+        "updated_at": "2026-06-08T09:40:57.702Z"
+      },
+      "feedback_sync": {
+        "status": "completed",
+        "feedback_id": "fb_e2ee06f9c5b64abaa1b32d471ca62b08",
+        "endpoint": "http://101.132.143.105:5087/api/pick-verifier/feedback",
+        "updated_at": "2026-06-08T09:40:57.895Z"
+      },
+      "deleted": true,
+      "deleted_at": "2026-06-08T09:41:13.949Z"
+    },
+    "local_realtime_cam0_20260608094014_6cpd56": {
+      "local_source": {
+        "id": "local_realtime_cam0_20260608094014_6cpd56",
+        "source_id": "realtime_cam0_20260608094014_6cpd56.jpg",
+        "original_filename": "realtime_cam0_20260608094014_6cpd56.jpg",
+        "stored_filename": "realtime_cam0_20260608094014_6cpd56.jpg",
+        "image_url": "/api/local-images/realtime_cam0_20260608094014_6cpd56.jpg",
+        "content_type": "image/jpeg",
+        "created_at": "2026-06-08T09:40:14.520Z",
+        "source_metadata": {
+          "camera_id": 0,
+          "camera_label": "right",
+          "source": "9002_snapshot",
+          "capture_group_id": "realtime_group_20260608094014_ivtga2",
+          "evaluate": false,
+          "group_role": "reference",
+          "group_record_ids": [
+            "local_realtime_cam0_20260608094014_6cpd56",
+            "local_realtime_cam1_20260608094014_pp2k0x"
+          ],
+          "paired_record_id": "local_realtime_cam1_20260608094014_pp2k0x"
+        },
+        "vlm_status": "pending",
+        "predicted_status": null,
+        "review_path": ""
+      },
+      "updated_at": "2026-06-08T09:41:08.754Z",
+      "deleted": true,
+      "deleted_at": "2026-06-08T09:41:08.754Z"
+    },
+    "local_realtime_cam1_20260608094014_pp2k0x": {
+      "local_source": {
+        "id": "local_realtime_cam1_20260608094014_pp2k0x",
+        "source_id": "realtime_cam1_20260608094014_pp2k0x.jpg",
+        "original_filename": "realtime_cam1_20260608094014_pp2k0x.jpg",
+        "stored_filename": "realtime_cam1_20260608094014_pp2k0x.jpg",
+        "image_url": "/api/local-images/realtime_cam1_20260608094014_pp2k0x.jpg",
+        "content_type": "image/jpeg",
+        "created_at": "2026-06-08T09:40:14.582Z",
+        "source_metadata": {
+          "camera_id": 1,
+          "camera_label": "left",
+          "source": "9002_snapshot",
+          "capture_group_id": "realtime_group_20260608094014_ivtga2",
+          "evaluate": true,
+          "group_role": "evaluation",
+          "group_record_ids": [
+            "local_realtime_cam0_20260608094014_6cpd56",
+            "local_realtime_cam1_20260608094014_pp2k0x"
+          ],
+          "paired_record_id": "local_realtime_cam0_20260608094014_6cpd56"
+        },
+        "vlm_status": "pending",
+        "predicted_status": null,
+        "review_path": ""
+      },
+      "updated_at": "2026-06-08T09:41:08.754Z",
+      "vlm": {
+        "status": "completed",
+        "model": "pick_verifier_1200_merged",
+        "endpoint": "http://101.132.143.105:5087/v1/chat/completions",
+        "prompt_version": "gripper_gn_binary_v1",
+        "predicted_status": "Not_Grasped",
+        "predicted_status_cn": "没夹住",
+        "model_result": "not_grasped",
+        "raw_model_output": "N",
+        "raw_response": {
+          "id": "chatcmpl-pred_7fbb5cc7c35d490c8009d045d8f5a64c",
+          "object": "chat.completion",
+          "created": 1780911644,
+          "model": "pick_verifier_1200_merged",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "N"
+              },
+              "finish_reason": "stop"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0
+          },
+          "pick_verifier": {
+            "prediction_id": "pred_7fbb5cc7c35d490c8009d045d8f5a64c",
+            "request_id": "req_cd7bc5f356ae4eef8194888981c7ca58",
+            "label": "N",
+            "state": "not_grasped",
+            "raw_output": "N"
+          }
+        },
+        "pick_verifier_prediction_id": "pred_7fbb5cc7c35d490c8009d045d8f5a64c",
+        "pick_verifier_request_id": "req_cd7bc5f356ae4eef8194888981c7ca58",
+        "error": "",
+        "updated_at": "2026-06-08T09:40:44.409Z"
+      },
+      "annotation": {
+        "human_result": "closed_not_grasped",
+        "model_result": "not_grasped",
+        "sample_validity": "valid",
+        "attribution_branch": "",
+        "attribution_reason": "",
+        "note": "",
+        "object_tag": "手机壳-夹爪3-有光",
+        "updated_at": "2026-06-08T09:40:51.116Z"
+      },
+      "feedback_sync": {
+        "status": "completed",
+        "feedback_id": "fb_1543e2b13ab7407182cebecc70a481f9",
+        "endpoint": "http://101.132.143.105:5087/api/pick-verifier/feedback",
+        "updated_at": "2026-06-08T09:40:51.410Z"
+      },
+      "deleted": true,
+      "deleted_at": "2026-06-08T09:41:08.754Z"
+    },
+    "local_realtime_cam0_20260608094139_8tc3x6": {
+      "local_source": {
+        "id": "local_realtime_cam0_20260608094139_8tc3x6",
+        "source_id": "realtime_cam0_20260608094139_8tc3x6.jpg",
+        "original_filename": "realtime_cam0_20260608094139_8tc3x6.jpg",
+        "stored_filename": "realtime_cam0_20260608094139_8tc3x6.jpg",
+        "image_url": "/api/local-images/realtime_cam0_20260608094139_8tc3x6.jpg",
+        "content_type": "image/jpeg",
+        "created_at": "2026-06-08T09:41:39.045Z",
+        "source_metadata": {
+          "camera_id": 0,
+          "camera_label": "right",
+          "source": "9002_snapshot",
+          "capture_group_id": "realtime_group_20260608094139_s4evcf",
+          "evaluate": false,
+          "group_role": "reference",
+          "group_record_ids": [
+            "local_realtime_cam0_20260608094139_8tc3x6",
+            "local_realtime_cam1_20260608094139_ogr3ac"
+          ],
+          "paired_record_id": "local_realtime_cam1_20260608094139_ogr3ac"
+        },
+        "vlm_status": "pending",
+        "predicted_status": null,
+        "review_path": ""
+      },
+      "updated_at": "2026-06-08T09:41:39.158Z"
+    },
+    "local_realtime_cam1_20260608094139_ogr3ac": {
+      "local_source": {
+        "id": "local_realtime_cam1_20260608094139_ogr3ac",
+        "source_id": "realtime_cam1_20260608094139_ogr3ac.jpg",
+        "original_filename": "realtime_cam1_20260608094139_ogr3ac.jpg",
+        "stored_filename": "realtime_cam1_20260608094139_ogr3ac.jpg",
+        "image_url": "/api/local-images/realtime_cam1_20260608094139_ogr3ac.jpg",
+        "content_type": "image/jpeg",
+        "created_at": "2026-06-08T09:41:39.109Z",
+        "source_metadata": {
+          "camera_id": 1,
+          "camera_label": "left",
+          "source": "9002_snapshot",
+          "capture_group_id": "realtime_group_20260608094139_s4evcf",
+          "evaluate": true,
+          "group_role": "evaluation",
+          "group_record_ids": [
+            "local_realtime_cam0_20260608094139_8tc3x6",
+            "local_realtime_cam1_20260608094139_ogr3ac"
+          ],
+          "paired_record_id": "local_realtime_cam0_20260608094139_8tc3x6"
+        },
+        "vlm_status": "pending",
+        "predicted_status": null,
+        "review_path": ""
+      },
+      "updated_at": "2026-06-08T09:41:47.945Z",
+      "vlm": {
+        "status": "completed",
+        "model": "pick_verifier_1200_merged",
+        "endpoint": "http://101.132.143.105:5087/v1/chat/completions",
+        "prompt_version": "gripper_gn_binary_v1",
+        "predicted_status": "Not_Grasped",
+        "predicted_status_cn": "没夹住",
+        "model_result": "not_grasped",
+        "raw_model_output": "N",
+        "raw_response": {
+          "id": "chatcmpl-pred_38a4a96dd01548ea8a1c714cb783407d",
+          "object": "chat.completion",
+          "created": 1780911707,
+          "model": "pick_verifier_1200_merged",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "N"
+              },
+              "finish_reason": "stop"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0
+          },
+          "pick_verifier": {
+            "prediction_id": "pred_38a4a96dd01548ea8a1c714cb783407d",
+            "request_id": "req_2854b6d055a84acab21e7ae7df534440",
+            "label": "N",
+            "state": "not_grasped",
+            "raw_output": "N"
+          }
+        },
+        "pick_verifier_prediction_id": "pred_38a4a96dd01548ea8a1c714cb783407d",
+        "pick_verifier_request_id": "req_2854b6d055a84acab21e7ae7df534440",
+        "error": "",
+        "updated_at": "2026-06-08T09:41:47.930Z"
       }
     }
   },
