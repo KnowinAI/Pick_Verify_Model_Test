@@ -22,3 +22,10 @@ eval_registry/_backups/
 eval_registry/samples/
 eval_registry/runs/
 eval_registry/bm/
+
+# 内部文档（不上传）
+pick_verifier_bm_iteration_report.html
+pick_verifier_eval_registry_report.html
+pick_verifier_eval_registry_report.md
+pick_verifier_testset_tables_fixed.html
+pick_verifier_testset_tables_fixed.xlsx
