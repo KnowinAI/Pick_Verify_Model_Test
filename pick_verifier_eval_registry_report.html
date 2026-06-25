@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pick Verifier 可追溯模型评测台账方案</title>
+  <style>
+    body {
+      margin: 0;
+      background: #f5f7fb;
+      color: #17202a;
+      font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
+      line-height: 1.72;
+    }
+    .page {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
+    .hero {
+      background: linear-gradient(135deg, #083b2f, #00a651);
+      color: white;
+      border-radius: 22px;
+      padding: 34px 38px;
+      margin-bottom: 22px;
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.12);
+    }
+    .hero h1 {
+      margin: 0 0 12px;
+      font-size: 32px;
+      line-height: 1.25;
+    }
+    .hero p {
+      margin: 0;
+      color: rgba(255,255,255,0.92);
+      font-size: 17px;
+    }
+    section {
+      background: white;
+      border: 1px solid #d9e2ec;
+      border-radius: 18px;
+      padding: 26px 30px;
+      margin: 18px 0;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+    }
+    h2 {
+      margin: 0 0 14px;
+      font-size: 24px;
+      color: #0f172a;
+    }
+    h3 {
+      margin: 22px 0 10px;
+      font-size: 18px;
+      color: #12352d;
+    }
+    p { margin: 10px 0; }
+    ul, ol { padding-left: 24px; }
+    li { margin: 6px 0; }
+    .quote {
+      border-left: 5px solid #00a651;
+      background: #effdf5;
+      color: #14532d;
+      padding: 13px 16px;
+      border-radius: 12px;
+      margin: 14px 0;
+      font-weight: 700;
+    }
+    .warn {
+      border-left: 5px solid #f97316;
+      background: #fff7ed;
+      color: #7c2d12;
+      padding: 13px 16px;
+      border-radius: 12px;
+      margin: 14px 0;
+    }
+    code {
+      background: #eef2f7;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-family: Consolas, "Microsoft YaHei", monospace;
+    }
+    pre {
+      background: #0f172a;
+      color: #e5e7eb;
+      padding: 16px 18px;
+      border-radius: 14px;
+      overflow-x: auto;
+      font-family: Consolas, "Microsoft YaHei", monospace;
+      font-size: 14px;
+      line-height: 1.62;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+      border: 1px solid #d9e2ec;
+    }
+    th, td {
+      border: 1px solid #d9e2ec;
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: #ecfdf3;
+      color: #064e3b;
+      font-weight: 800;
+    }
+    tr:nth-child(even) td { background: #fbfdff; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .card {
+      border: 1px solid #d9e2ec;
+      background: #fbfdff;
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .footer {
+      text-align: center;
+      color: #64748b;
+      margin-top: 22px;
+      font-size: 13px;
+    }
+    @media (max-width: 760px) {
+      .grid { grid-template-columns: 1fr; }
+      .page { padding: 20px 14px 42px; }
+      .hero, section { padding: 22px; }
+      .hero h1 { font-size: 26px; }
+    }
+    @media print {
+      body { background: white; }
+      .page { max-width: none; padding: 0; }
+      .hero, section { box-shadow: none; page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <h1>Pick Verifier 可追溯模型评测台账方案</h1>
+      <p>目的：把测试集、历史模型结果、人工标注、具体图片、粗颗粒度指标串起来，支持回归测试、对比测试和历史追溯。</p>
+    </header>
+
+    <section>
+      <h2>1. 先说结论</h2>
+      <p>你现在要解决的不是单纯“怎么做一个测试集”，而是需要一套<strong>可追溯的模型评测台账</strong>。</p>
+      <p>它需要回答：</p>
+      <ul>
+        <li>某个历史模型版本，在某个 BM 版本上，具体测了哪些样本？</li>
+        <li>每个样本当时的人类标注是什么？</li>
+        <li>模型当时预测了什么？原始输出是什么？</li>
+        <li>准确率、召回率、漏判、误判这些数字是由哪些样本算出来的？</li>
+        <li>点开某个错误桶，能不能看到具体图片？</li>
+        <li>同一张样本，base、opt10、opt11 分别预测成什么？</li>
+        <li>新模型相比旧模型，是哪些样本变好了，哪些样本退化了？</li>
+      </ul>
+      <div class="quote">核心不是只保存一个 accuracy=86%，而是保存：BM 版本 + 样本清单 + 人工标注 + 模型运行记录 + 每张样本预测结果 + 指标计算明细。</div>
+    </section>
+
+    <section>
+      <h2>2. 总体结构</h2>
+      <p>建议分成四层：</p>
+      <pre>1. 样本层：图片 + 人工标注
+2. BM 层：某个 BM 版本包含哪些样本
+3. 模型运行层：某个模型在某个 BM 上跑了一次
+4. 预测结果层：这次运行中每个样本的模型输出和对错</pre>
+      <div class="quote">模型结果不要覆盖写回样本表。每跑一次模型，就新增一次 run 记录和一份 predictions 明细。</div>
+    </section>
+
+    <section>
+      <h2>3. 样本层：图片和人工标注</h2>
+      <p>样本层负责回答：这张图是什么、图片在哪里、人工标准答案是什么、它有什么标签。</p>
+      <p>一行对应一组样本：</p>
+      <pre>cam0 + cam1 = 一个样本</pre>
+      <p>其中 <code>cam1</code> 是评估图，参与人工标注、VLM 和统计；<code>cam0</code> 是参考图，用于辅助判断，不参与统计。</p>
+      <h3>建议字段</h3>
+      <pre>sample_id / group_id
+capture_group_id
+cam0_path
+cam1_path
+cam0_sha1
+cam1_sha1
+source_batch
+object_category
+object_name
+label
+human_result
+sample_validity
+geometry_tags
+transparency
+reflectiveness
+deformability
+material_tags
+background_complexity
+image_quality_tags
+gripper_state
+gripper_object_relation
+gripper_table_relation
+object_table_relation
+grasp_depth
+grasp_direction
+bm_review_status
+review_note
+annotation_version
+created_at
+updated_at</pre>
+      <div class="warn">样本表主要保存人工标注和样本属性。短期可以保留 base_pred、trained_pred 做临时分析，但长期建议迁移到模型预测结果表。</div>
+    </section>
+
+    <section>
+      <h2>4. BM 层：测试集版本清单</h2>
+      <p>BM 不应该只是一个名字，而应该是一份明确的样本清单。</p>
+      <pre>BM_v1.0 包含 sample_001、sample_002、sample_003 ...</pre>
+      <h3>BM 层要回答</h3>
+      <ul>
+        <li>BM v1.0 到底有哪些样本？</li>
+        <li>这些样本当时使用的是哪个人工标注版本？</li>
+        <li>这些图片当时在哪里？</li>
+        <li>这些图片有没有被冻结保存？</li>
+      </ul>
+      <h3>建议字段</h3>
+      <pre>bm_id
+bm_version
+bm_name
+sample_id
+annotation_version
+cam0_snapshot_path
+cam1_snapshot_path
+cam0_sha1
+cam1_sha1
+included_at
+include_reason</pre>
+      <div class="quote">正式 BM 冻结时，建议不仅记录原始图片路径，还复制一份图片到 BM 快照目录。这样以后原始图片移动或清理，历史 BM 仍能打开图片。</div>
+      <pre>eval_registry/
+  benchmarks/
+    BM_v1.0/
+      manifest.jsonl
+      images/
+        cam0/
+        cam1/</pre>
+    </section>
+
+    <section>
+      <h2>5. 模型运行层：一次评测就是一个 run</h2>
+      <p>模型运行层负责回答：哪个模型、什么时间跑的、跑的是哪个 BM、用的哪个 prompt、用的哪个代码版本、是否跑完。</p>
+      <h3>建议字段</h3>
+      <pre>run_id
+model_name
+model_version
+bm_id
+bm_version
+prompt_version
+code_version
+vlm_endpoint
+run_status
+started_at
+finished_at
+operator
+note</pre>
+      <h3>run.json 示例</h3>
+      <pre>{
+  "run_id": "run_20260620_opt10_BM_v1.0",
+  "model_name": "qwen3vl",
+  "model_version": "opt10_merged",
+  "bm_id": "BM_v1.0",
+  "prompt_version": "gripper_binary_v2",
+  "run_status": "completed",
+  "started_at": "2026-06-20T10:00:00+08:00",
+  "finished_at": "2026-06-20T10:30:00+08:00"
+}</pre>
+    </section>
+
+    <section>
+      <h2>6. 预测结果层：每张样本的模型输出</h2>
+      <p>一行代表：某次 run 对某个 sample 的预测结果。</p>
+      <h3>建议字段</h3>
+      <pre>run_id
+sample_id
+bm_id
+human_label
+predicted_label
+correct
+failure_direction
+raw_model_output
+normalized_output
+status
+error_message
+latency_ms
+created_at</pre>
+      <h3>predictions.jsonl 示例</h3>
+      <pre>{
+  "run_id": "run_20260620_opt10_BM_v1.0",
+  "sample_id": "capture_group_20260608025526_ck0xyg",
+  "human_label": "G",
+  "predicted_label": "N",
+  "correct": false,
+  "failure_direction": "G_to_N",
+  "raw_model_output": "N",
+  "status": "ok",
+  "latency_ms": 1420
+}</pre>
+      <table>
+        <thead><tr><th>错误方向</th><th>含义</th></tr></thead>
+        <tbody>
+          <tr><td>G_to_N</td><td>真实是 G，模型预测 N，也就是漏判抓住。</td></tr>
+          <tr><td>N_to_G</td><td>真实是 N，模型预测 G，也就是误判抓住。</td></tr>
+          <tr><td>none</td><td>预测正确。</td></tr>
+          <tr><td>unknown</td><td>无法判断或模型失败。</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>7. 粗颗粒度指标如何追溯</h2>
+      <p>每个指标都必须能回到参与计算的 sample_id 列表。不要只保存 <code>accuracy = 86%</code>，而要能知道它的分子、分母和对应样本。</p>
+      <p>指标口径要和当前项目页面保持一致，按照“夹住 / 没夹住”分别计算精准率和召回率。</p>
+      <pre>TP：真实夹住，预测夹住
+FN：真实夹住，预测没夹住，也就是漏判
+FP：真实没夹住，预测夹住，也就是误判
+TN：真实没夹住，预测没夹住
+
+总准确率 = (TP + TN) / 全部已计分样本
+夹住精准率 = TP / (TP + FP)
+夹住召回率 = TP / (TP + FN)
+没夹住精准率 = TN / (TN + FN)
+没夹住召回率 = TN / (TN + FP)</pre>
+      <pre>夹住精准率：模型判为夹住的样本里，有多少真的夹住。
+夹住召回率：真实夹住的样本里，有多少被模型识别为夹住。
+没夹住精准率：模型判为没夹住的样本里，有多少真的没夹住。
+没夹住召回率：真实没夹住的样本里，有多少被模型识别为没夹住。</pre>
+      <h3>metrics.json 示例</h3>
+      <pre>{
+  "run_id": "run_20260620_opt10_BM_v1.0",
+  "bm_id": "BM_v1.0",
+  "sample_count": 300,
+  "accuracy": {
+    "value": 0.86,
+    "numerator": 258,
+    "denominator": 300
+  },
+  "grasped_precision": {
+    "label": "夹住精准率",
+    "value": 0.84,
+    "numerator": 125,
+    "denominator": 149
+  },
+  "grasped_recall": {
+    "label": "夹住召回率",
+    "value": 0.83,
+    "numerator": 125,
+    "denominator": 150
+  },
+  "not_grasped_precision": {
+    "label": "没夹住精准率",
+    "value": 0.88,
+    "numerator": 133,
+    "denominator": 151
+  },
+  "not_grasped_recall": {
+    "label": "没夹住召回率",
+    "value": 0.89,
+    "numerator": 133,
+    "denominator": 150
+  },
+  "error_buckets": {
+    "G_to_N": ["sample_001", "sample_009"],
+    "N_to_G": ["sample_021", "sample_078"]
+  }
+}</pre>
+    </section>
+
+    <section>
+      <h2>8. 推荐的查看方式</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>历史模型运行列表</h3>
+          <p>展示 run_id、模型版本、BM版本、样本数、总准确率、夹住精准率、夹住召回率、没夹住精准率、没夹住召回率、失败数和运行时间。</p>
+        </div>
+        <div class="card">
+          <h3>单次评测详情页</h3>
+          <p>展示总体指标、混淆矩阵、按物体类别/夹取关系分组指标和错误样本列表。</p>
+        </div>
+        <div class="card">
+          <h3>样本列表页</h3>
+          <p>每条样本展示 cam0、cam1、人工标签、模型预测、是否正确、错误方向和关键标注。</p>
+        </div>
+        <div class="card">
+          <h3>样本详情页</h3>
+          <p>展示样本图片、人工标注、所有历史模型预测结果、出现在哪些 BM 中，以及是否进入训练集。</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>9. 不同模型版本怎么对比</h2>
+      <p>对比两个 run，例如 <code>base on BM_v1.0</code> 和 <code>opt10 on BM_v1.0</code>，可以把样本分成四类：</p>
+      <table>
+        <thead><tr><th>类型</th><th>含义</th><th>用途</th></tr></thead>
+        <tbody>
+          <tr><td>improved</td><td>base 错，opt10 对</td><td>模型提升样本</td></tr>
+          <tr><td>regressed</td><td>base 对，opt10 错</td><td>模型退化样本</td></tr>
+          <tr><td>still_wrong</td><td>base 错，opt10 也错</td><td>持续失败样本</td></tr>
+          <tr><td>still_correct</td><td>base 对，opt10 也对</td><td>稳定正确样本</td></tr>
+        </tbody>
+      </table>
+      <div class="quote">准确率从 78% 到 86% 只能说明整体变好了，但不能说明哪些样本变好了、哪些样本变差了、是否牺牲了某个类别。run 对比可以回答这些问题。</div>
+    </section>
+
+    <section>
+      <h2>10. 为什么不建议把所有模型预测都加到样本表里</h2>
+      <p>短期可以在样本标注总表里加 <code>base_pred</code>、<code>trained_pred</code>、<code>candidate_type</code>、<code>failure_direction</code> 做临时分析，但长期不建议一直这么加。</p>
+      <ul>
+        <li>模型版本越来越多，表会越来越宽。</li>
+        <li>同一个模型可能用不同 prompt 跑多次。</li>
+        <li>同一个模型可能分别跑 BM_v1、BM_v2。</li>
+        <li>很难记录原始输出、错误信息、运行耗时。</li>
+        <li>很难做 run 和 run 之间的对比。</li>
+      </ul>
+      <div class="quote">推荐结构：样本表 = 标准答案；模型结果表 = 历史答题记录。</div>
+    </section>
+
+    <section>
+      <h2>11. 文件级最小落地方案</h2>
+      <p>如果现在不想上数据库，可以先用文件结构。</p>
+      <pre>eval_registry/
+  samples/
+    samples.jsonl
+    annotations.jsonl
+
+  benchmarks/
+    BM_v1.0/
+      manifest.jsonl
+      metrics_baseline_note.json
+      images/
+        cam0/
+        cam1/
+
+    BM_v2.0/
+      manifest.jsonl
+      images/
+        cam0/
+        cam1/
+
+  runs/
+    run_20260619_base_BM_v1.0/
+      run.json
+      predictions.jsonl
+      metrics.json
+
+    run_20260620_opt10_BM_v1.0/
+      run.json
+      predictions.jsonl
+      metrics.json
+
+    run_20260621_opt11_BM_v1.0/
+      run.json
+      predictions.jsonl
+      metrics.json</pre>
+    </section>
+
+    <section>
+      <h2>12. 图片资产、下载、导出和导入</h2>
+      <p>除了能在页面里看到图片，还需要把图片作为评测资产管理。也就是说：样本图片不仅要能展示，还要能下载、导出、导入和复现。</p>
+      <h3>为什么要支持下载、导出、导入</h3>
+      <ul>
+        <li>给同事复核时，需要把某一批错例图片打包发出去。</li>
+        <li>训练新模型时，需要从 failure_pool 或 BM 候选池导出图片和标注。</li>
+        <li>换电脑、换服务器或归档历史实验时，需要完整迁移 BM 图片和结果。</li>
+        <li>历史模型评测结果必须能回到当时的具体图片，而不是只剩路径。</li>
+        <li>某个指标下钻出来的一组样本，应该可以直接批量下载。</li>
+      </ul>
+      <h3>需要支持的能力</h3>
+      <pre>单张图片下载
+单个样本 cam0/cam1 下载
+某个错误桶批量下载
+某个 run 的全部错例导出
+某个 BM 版本完整导出
+某个 BM 版本完整导入</pre>
+      <h3>推荐的导出包格式</h3>
+      <pre>BM_v1.0_export.zip
+  manifest.jsonl
+  annotations.jsonl
+  images/
+    cam0/
+      realtime_cam0_xxx.jpg
+    cam1/
+      realtime_cam1_xxx.jpg
+  README.txt</pre>
+      <pre>run_20260620_opt10_BM_v1.0_export.zip
+  run.json
+  predictions.jsonl
+  metrics.json
+  manifest.jsonl
+  images/
+    cam0/
+    cam1/
+  error_buckets/
+    G_to_N.jsonl
+    N_to_G.jsonl
+  README.txt</pre>
+      <h3>导出包里必须包含什么</h3>
+      <pre>sample_id
+group_id
+cam0_path
+cam1_path
+cam0_sha1
+cam1_sha1
+human_label
+object_category
+object_name
+关键人工标签
+模型版本
+模型预测
+是否正确
+错误方向
+run_id
+bm_version</pre>
+      <p>只导出图片是不够的，必须一起带上标注和元数据。这样别人拿到 zip 后，才能知道这张图属于哪个样本、人工真值是什么、模型当时预测了什么、为什么被导出来。</p>
+      <h3>导入时要做的校验</h3>
+      <pre>manifest 是否存在
+图片文件是否齐全
+cam0/cam1 是否能按 sample_id 成对
+sha1 是否匹配
+sample_id 是否重复
+BM 版本是否已经存在
+run_id 是否已经存在
+人工标签字段是否完整</pre>
+      <p>如果发现问题，应生成 <code>import_report.json</code>，记录导入样本数、成功样本数、失败样本数、缺失图片列表、sha1 不匹配列表、重复 sample_id 列表和跳过原因。</p>
+      <h3>页面上应该提供的下载入口</h3>
+      <table>
+        <thead><tr><th>页面位置</th><th>下载/导出能力</th></tr></thead>
+        <tbody>
+          <tr><td>样本详情页</td><td>下载 cam0、下载 cam1、下载当前样本包</td></tr>
+          <tr><td>样本列表页</td><td>批量下载当前筛选结果</td></tr>
+          <tr><td>单次 run 详情页</td><td>导出本次 run 全量结果、导出错例图片、导出 predictions.jsonl</td></tr>
+          <tr><td>错误桶页面</td><td>导出 G_to_N、导出 N_to_G、导出当前筛选图片</td></tr>
+          <tr><td>BM 详情页</td><td>导出完整 BM 包、下载 manifest.jsonl</td></tr>
+          <tr><td>历史 run 列表页</td><td>下载某次 run 的 metrics.json 和结果包</td></tr>
+        </tbody>
+      </table>
+      <div class="quote">导出必须带图片 + 标注 + 模型结果 + manifest；导入必须校验图片完整性和 sample_id 对应关系。</div>
+    </section>
+
+    <section>
+      <h2>13. 长期方案：SQLite 或轻量数据库</h2>
+      <p>如果后续 BM 版本多、模型版本多、样本多，建议上 SQLite。</p>
+      <pre>samples
+annotations
+bm_snapshots
+bm_snapshot_samples
+model_runs
+model_predictions
+metric_reports</pre>
+      <p>关键关系：</p>
+      <pre>samples 1 --- N model_predictions
+bm_snapshots 1 --- N bm_snapshot_samples
+model_runs 1 --- N model_predictions</pre>
+      <p>这样可以支持：</p>
+      <ul>
+        <li>查看 opt10 在 BM_v1.0 上所有错例。</li>
+        <li>查看 sample_001 历史上所有模型预测。</li>
+        <li>查看 PhoneCover 类别下 opt10 和 opt11 谁更好。</li>
+        <li>查看所有 N_to_G 的误判图片。</li>
+        <li>查看某次 accuracy 的分子分母样本。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>14. 结合当前 pick-verify 项目的建议</h2>
+      <p>不建议一上来大改平台。建议分三步：</p>
+      <ol>
+        <li><strong>先做文件级 registry：</strong>保存 BM manifest、run.json、predictions.jsonl、metrics.json。</li>
+        <li><strong>再做评测历史查看页：</strong>查看所有历史 run、单个 run 指标、错误样本列表和 cam0/cam1 图片。</li>
+        <li><strong>最后做模型对比页：</strong>对比 improved、regressed、still_wrong、still_correct。</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>15. 重要规则</h2>
+      <table>
+        <thead><tr><th>规则</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>BM 样本冻结</td><td>BM v1.0 冻结后，样本 ID、图片、人工标签不随便改；修正标签应生成 BM_v1.1。</td></tr>
+          <tr><td>模型结果只追加，不覆盖</td><td>每次新增 run_id + sample_id + predicted_label，历史模型结果才不会丢。</td></tr>
+          <tr><td>指标从样本结果计算</td><td>准确率、召回率、混淆矩阵都从 predictions.jsonl 自动计算，不手填。</td></tr>
+          <tr><td>指标能点回样本</td><td>例如 PhoneCover 的没夹住召回率可以下钻到所有对应样本和图片。</td></tr>
+          <tr><td>训练集和 BM 隔离</td><td>BM 不建议直接进入训练集；若发生 training_leak，需要记录或重新冻结 BM。</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>16. 可以对同事这样描述</h2>
+      <div class="quote">我们需要的不只是一个测试集，而是一套可追溯的模型评测台账。每个 BM 版本固定一批样本和人工标签；每次模型评测都生成一个 run；run 里保存每个样本的预测结果、原始输出和对错。准确率、召回率这些指标不是孤立数字，而是可以下钻到具体样本和图片；这些图片还要能按单样本、筛选结果、错误桶、BM 版本或 run 结果进行下载、导出和导入。这样我们就能对比不同模型版本：哪些样本变好了，哪些样本退化了，哪些问题持续存在，并且历史数据可以迁移和复核。</div>
+    </section>
+
+    <section>
+      <h2>17. 最终建议</h2>
+      <p>当前项目最适合的最小版本：</p>
+      <pre>样本标注表
++
+BM 快照 manifest
++
+模型 run 记录
++
+预测结果明细
++
+本地查看页</pre>
+      <p>最少需要三个查看页面：</p>
+      <ol>
+        <li>历史模型运行列表</li>
+        <li>单次运行详情和错误样本图片</li>
+        <li>两个模型版本对比</li>
+      </ol>
+      <p>这样就能满足：查看历史内容、查看不同模型版本、查看对应数据内容、查看具体图片、粗颗粒度准召率可追溯、模型提升/退化可追溯。</p>
+    </section>
+
+    <p class="footer">文件：pick_verifier_eval_registry_report.html ｜ 可直接用浏览器打开，也可打印/另存为 PDF。</p>
+  </main>
+</body>
+</html>

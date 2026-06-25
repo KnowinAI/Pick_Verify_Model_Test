@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "start": "node platform/gripper_eval_server.js",
-    "import:legacy": "node scripts/import_legacy_platform.js"
+    "import:legacy": "node scripts/import_legacy_platform.js",
+    "pool:purge": "node scripts/purge_missing_pool_samples.js",
+    "pool:purge:dry": "node scripts/purge_missing_pool_samples.js --dry-run"
   }
 }

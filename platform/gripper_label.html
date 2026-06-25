@@ -1,0 +1,1148 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>样本池 BM 标注</title>
+  <style>
+    :root {
+      --bg: #f4f6fb; --card: #ffffff; --text: #1e293b; --muted: #64748b;
+      --line: #e4e8f0; --line-soft: #eef2f7; --green: #00a651; --green-dark: #087f45; --blue: #2563eb; --blue-dark: #1d4ed8;
+      --orange: #f97316; --red: #dc2626; --shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.06);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text);
+      font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif; line-height: 1.4; }
+    .page { width: min(1500px, calc(100% - 20px)); margin: 0 auto; padding: 10px 0 24px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+    .topbar h1 { font-size: 19px; margin: 0; letter-spacing: -0.02em; }
+    .nav { display: flex; align-items: center; gap: 3px; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 3px; box-shadow: var(--shadow); }
+    .nav a { color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 600; padding: 5px 11px; border-radius: 7px; transition: background .12s, color .12s; }
+    .nav a:hover { background: var(--line-soft); color: var(--text); text-decoration: none; }
+    .nav a.active { background: var(--green); color: #fff; }
+    .layout { display: grid; grid-template-columns: 300px 1fr; gap: 12px; margin-top: 10px; align-items: start; }
+    .panel { background: var(--card); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
+    .panel .hd { padding: 8px 12px; border-bottom: 1px solid var(--line); font-weight: 800; font-size: 13px; }
+    .panel .bd { padding: 10px 12px; }
+    label.fl { display: block; font-size: 11px; color: var(--muted); margin: 1px 0 1px; }
+    select, input[type=text] { width: 100%; font-family: inherit; font-size: 13px; padding: 4px 8px;
+      border-radius: 7px; border: 1px solid var(--line); background: white; transition: border-color .12s, box-shadow .12s; }
+    select:focus, input[type=text]:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
+    button { font-family: inherit; font-size: 13px; cursor: pointer; border-radius: 8px;
+      border: 1px solid var(--line); padding: 6px 12px; background: white; color: var(--text); transition: all .12s ease; }
+    button:hover { border-color: #cbd5e1; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    button.primary { background: var(--green); border-color: var(--green); color: white; font-weight: 700; padding: 8px 18px; }
+    button.primary:hover { background: var(--green-dark); border-color: var(--green-dark); }
+    button.danger { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+    button.danger:hover:not(:disabled) { background: #fee2e2; border-color: #fca5a5; }
+    .progress { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+    .bar { height: 6px; background: #eef2f7; border-radius: 6px; overflow: hidden; margin-top: 4px; }
+    .bar > i { display: block; height: 100%; background: var(--green); }
+    .filters { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; background: #cbd5e1; }
+    .dot.done { background: var(--green); }
+    .detail-grid { display: grid; grid-template-columns: 1fr; gap: 10px; align-items: start; }
+    .imgbox { background: #0f172a; border-radius: 10px; overflow: hidden; position: relative; min-height: 160px; display: flex; align-items: center; justify-content: center; }
+    .imgbox img { width: 100%; height: 100%; object-fit: contain; max-height: 360px; }
+    .imgcap { position: absolute; top: 6px; left: 6px; background: rgba(0,166,81,.9); color: white; font-size: 11px; padding: 2px 7px; border-radius: 6px; }
+    .dl { font-size: 12px; margin-top: 5px; }
+    .dl a { color: var(--blue); text-decoration: none; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 2px 8px; align-content: start; }
+    .form-grid .full { grid-column: 1 / -1; }
+    .grp { grid-column: 1 / -1; margin-top: 4px; font-weight: 800; font-size: 12px; color: #334155; border-top: 1px dashed var(--line); padding-top: 3px; }
+    .grp:first-child { margin-top: 0; border-top: none; padding-top: 0; }
+    .req::after { content: " *"; color: var(--red); }
+    .hr-field { margin-bottom: 2px; }
+    .hr-btns { display: flex; gap: 8px; margin-top: 2px; }
+    .hr-btn { flex: 1; padding: 9px 0; font-size: 14px; font-weight: 800; border-radius: 8px; border: 2px solid var(--line); background: #fff; color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .hr-btn:hover { border-color: #cbd5e1; }
+    .hr-btn .k { font-size: 10px; font-weight: 700; opacity: .55; border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; }
+    .hr-btn.g.on { background: #dcfce7; border-color: var(--green); color: var(--green-dark); }
+    .hr-btn.n.on { background: #fee2e2; border-color: #dc2626; color: #b91c1c; }
+    .dict-badge { display: inline-block; margin-left: 5px; font-size: 10px; font-weight: 700; color: var(--orange); background: #fff7ed; border: 1px solid #fed7aa; border-radius: 999px; padding: 0 5px; vertical-align: middle; }
+    .multi { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 1px; }
+    .multi label { font-size: 11px; background: #f1f5f9; border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; cursor: pointer; user-select: none; }
+    .multi input { margin-right: 4px; vertical-align: middle; }
+    .multi label.on { background: #dcfce7; border-color: var(--green); color: var(--green-dark); }
+    .saverow { display: flex; gap: 10px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+    .msg { font-size: 12px; }
+    .msg.ok { color: var(--green-dark); }
+    .msg.err { color: var(--red); }
+    .meta { font-size: 11px; color: var(--muted); font-family: ui-monospace, Menlo, Consolas, monospace; word-break: break-all; margin-top: 6px; }
+    .empty { color: var(--muted); padding: 30px 14px; text-align: center; }
+    .toolbar2 { margin-top: 10px; }
+    .toolbar2 .bd { padding: 8px 12px; }
+    .tb-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+    .tb-field { min-width: 140px; }
+    .tb-field.grow { flex: 1; min-width: 200px; }
+    .tb-field .fl { margin-top: 0; }
+    .modes { margin-left: auto; display: flex; gap: 6px; align-items: flex-end; }
+    .merge-layout { display: grid; grid-template-columns: 1fr 440px; gap: 12px; margin-top: 10px; align-items: start; }
+    .rightcol { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 10px; }
+    .batchpanel > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+    .batchpanel > summary::-webkit-details-marker { display: none; }
+    .batchpanel > summary::after { content: "展开 ▾"; font-size: 11px; font-weight: 600; color: var(--muted); }
+    .batchpanel[open] > summary::after { content: "收起 ▴"; }
+    .batchbar { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; font-weight: 400; }
+    .batchbar .spacer { flex: 1 1 auto; min-width: 8px; }
+    .batchbar .tip { font-size: 12px; color: var(--muted); font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+    .tip-help { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%; background: #e2e8f0; color: #475569; font-size: 10px; font-weight: 700; cursor: help; }
+    .bb-group { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; background: #f8fafc; border: 1px solid var(--line); border-radius: 8px; }
+    .bb-group label { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; margin: 0; }
+    .bb-group select { width: auto; padding: 3px 6px; }
+    .bb-count { font-size: 12px; color: var(--muted); white-space: nowrap; }
+    .batchbar button.ghost { padding: 3px 9px; font-size: 12px; }
+    .ep-compact input[type=text] { width: 72px; padding: 3px 6px; font-size: 12px; }
+    .ep-compact input[data-ep-model] { width: 88px; }
+    .ep-compact label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; padding: 10px; max-height: 78vh; overflow-y: auto; user-select: none; align-items: start; }
+    .thumb { position: relative; border: 2px solid transparent; border-radius: 8px; overflow: hidden; cursor: pointer; background: #fff; display: flex; flex-direction: column; }
+    .thumb-img { position: relative; aspect-ratio: 1 / 1; overflow: hidden; background: #0f172a; }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; -webkit-user-drag: none; user-select: none; }
+    .thumb.sel { border-color: var(--green); box-shadow: 0 0 0 2px rgba(0,166,81,.25); }
+    .thumb.focus { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(37,99,235,.35); }
+    .thumb.focus.sel { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(37,99,235,.35), inset 0 0 0 2px var(--green); }
+    .thumb .chk { position: absolute; top: 6px; left: 6px; width: 22px; height: 22px; cursor: pointer; accent-color: var(--green); z-index: 3; }
+    .thumb .zoom { position: absolute; top: 5px; right: 5px; width: 24px; height: 24px; border-radius: 6px; border: none; background: rgba(15,23,42,.72); color: #fff; font-size: 13px; cursor: zoom-in; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .12s; padding: 0; z-index: 3; }
+    .thumb:hover .zoom { opacity: 1; }
+    .selbox { position: fixed; border: 1.5px solid var(--blue); background: rgba(37,99,235,.12); pointer-events: none; z-index: 9998; border-radius: 2px; }
+    .thumb.sel .thumb-img::after { content: '✓'; position: absolute; bottom: 6px; right: 6px; width: 20px; height: 20px; border-radius: 50%; background: var(--green); color: #fff; font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+    .thumb-info { font-size: 10px; background: #f8fafc; color: #334155; padding: 3px 6px 4px; line-height: 1.3; border-top: 1px solid var(--line); }
+    .thumb-info .badge-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+    .thumb-info .fname { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; color: #94a3b8; font-size: 9px; margin-top: 1px; }
+    .thumb-info .tagline { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 2px; }
+    .thumb-info .tagline .tg { flex: 0 0 auto; background: #e7edf5; color: #334155; border: 1px solid #e2e8f0; border-radius: 4px; padding: 0 4px; font-size: 9px; line-height: 1.5; }
+    .thumb-info .done-dot { color: var(--green); }
+    .thumb .mtag { position: absolute; top: 5px; left: 50%; transform: translateX(-50%); font-size: 10px; font-weight: 700; padding: 1px 8px; border-radius: 999px; color: #fff; white-space: nowrap; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+    .thumb .mtag.ok { background: rgba(0,166,81,.94); }
+    .thumb .mtag.bad { background: rgba(220,38,38,.94); }
+    .thumb .mtag.na { background: rgba(71,85,105,.94); }
+    .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.86); display: none; align-items: center; justify-content: center; z-index: 50; cursor: zoom-out; }
+    .lightbox.open { display: flex; }
+    .lightbox img { max-width: 94vw; max-height: 94vh; object-fit: contain; border-radius: 8px; }
+    .lightbox .lbcap { position: absolute; top: 14px; left: 14px; color: #fff; font-size: 12px; background: rgba(0,0,0,.55); padding: 4px 10px; border-radius: 6px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+    .lightbox .lbhint { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); color: #cbd5e1; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <h1>样本池 BM 标注</h1>
+      <nav class="nav">
+        <a href="/pool">样本池</a>
+        <a href="/label" class="active">标注</a>
+        <a href="/bm">BM快照</a>
+        <a href="/runs">模型评测</a>
+      </nav>
+    </div>
+
+    <!-- 共享工具条：筛选 + 标注人 + 进度 + 模式切换 -->
+    <div class="toolbar2 panel">
+      <div class="bd">
+        <div class="tb-row">
+          <div class="tb-field">
+            <label class="fl">物品类别</label>
+            <select id="fCategory"></select>
+          </div>
+          <div class="tb-field">
+            <label class="fl">标注状态</label>
+            <select id="fStatus">
+              <option value="unlabeled">未标注</option>
+              <option value="all">全部</option>
+              <option value="labeled">已标注</option>
+            </select>
+          </div>
+          <div class="tb-field">
+            <label class="fl">采集日期</label>
+            <select id="fDate"><option value="">全部日期</option></select>
+          </div>
+          <div class="tb-field">
+            <label class="fl">模型结果</label>
+            <select id="fVlm" title="按所选「模型版本」的预测结果筛选（漏判/误判需结合人工标注）">
+              <option value="">全部</option>
+              <option value="fn" title="人工=夹住，模型=未夹住（漏报）">漏判</option>
+              <option value="fp" title="人工=未夹住，模型=夹住（误报）">误判</option>
+              <option value="G">夹住</option>
+              <option value="N">未夹住</option>
+            </select>
+          </div>
+          <div class="tb-field">
+            <label class="fl">标注人</label>
+            <input type="text" id="operator" placeholder="选填">
+          </div>
+          <div class="tb-field grow">
+            <label class="fl">进度</label>
+            <div class="progress" id="progress">加载中…</div>
+            <div class="bar"><i id="barFill" style="width:0%"></i></div>
+          </div>
+        </div>
+        <div class="tb-row" id="fieldFilterRow" style="margin-top:6px;align-items:center;flex-wrap:wrap;gap:6px;">
+          <label class="fl" style="margin:0 2px 0 0;">标注项筛选</label>
+          <div id="fieldFilters" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 融合视图：缩略图网格（点图标注 · 勾选批量）+ 右侧标注详情 + 可折叠批量应用 -->
+    <div class="merge-layout" id="mergeView">
+      <div class="panel">
+        <div class="hd batchbar">
+          <span class="tip" title="单击图片=查看右侧详情（不会误选）；Shift+单击=选中/取消这一张（可跳着挑想要的）；勾选框=同样选中；🔍/Enter=看大图；Ctrl+A 全选本页；Esc 清空选择">缩略图<span class="tip-help" title="单击=看详情 · Shift+单击=选中(可跳选) · 勾选框=选中 · 🔍 看大图">?</span></span>
+
+          <div class="bb-group">
+            <label>每行
+              <select id="bCols">
+                <option value="auto">自动</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4" selected>4</option>
+                <option value="6">6</option>
+                <option value="8">8</option>
+                <option value="10">10</option>
+                <option value="12">12</option>
+              </select>
+            </label>
+            <label>每页
+              <select id="bPageSize">
+                <option value="60">60</option>
+                <option value="120">120</option>
+                <option value="240">240</option>
+                <option value="480">480</option>
+              </select>
+            </label>
+            <label title="在缩略图底部用一条紧凑标签显示已标注内容（鼠标悬停展开全部）"><input type="checkbox" id="showTags" checked>图上显示标签</label>
+          </div>
+
+          <div class="bb-group">
+            <button id="selPage" class="ghost">全选本页</button>
+            <button id="selClear" class="ghost">取消勾选</button>
+            <span class="bb-count">已选 <b id="selCount">0</b></span>
+            <span class="bb-count" style="color:#888;">勾选后点右侧「保存标注」即批量套用</span>
+          </div>
+
+          <div class="bb-group">
+            <label title="选择用哪个模型版本跑预测，单张「跑模型」和「批量跑模型」都用这个版本">模型版本
+              <select id="modelSel"><option value="">加载中…</option></select>
+            </label>
+            <button id="batchVlm" class="ghost" title="对勾选的样本逐个调用模型，结果显示在图片上（不写入任何 run）" disabled>批量跑模型 (0)</button>
+            <span id="batchVlmMsg" class="bb-count"></span>
+          </div>
+
+          <div class="bb-group" id="customEpMount"></div>
+
+          <span class="spacer"></span>
+
+          <div class="bb-group">
+            <button id="bPrev" class="ghost">上一页</button>
+            <span id="bPageInfo" class="bb-count"></span>
+            <button id="bNext" class="ghost">下一页</button>
+          </div>
+        </div>
+        <div class="grid" id="grid"></div>
+      </div>
+      <div class="rightcol">
+        <div class="panel">
+          <div class="hd">标注详情</div>
+          <div class="bd" id="detail">
+            <div class="empty">点左侧任意缩略图开始标注</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="lightbox" id="lightbox">
+    <span class="lbcap" id="lbCap"></span>
+    <img id="lbImg" alt="">
+    <span class="lbhint">点击任意处 / Esc 关闭 · ← → 切换上一张/下一张</span>
+  </div>
+
+  <script src="/annotation_schema.js"></script>
+  <script src="/model_endpoint_ui.js"></script>
+  <script>
+    // 标注表单字段 = 单一数据源（annotation_schema.js）里的非系统字段。
+    // dict:true 表示物体级属性，可由物品字典按类别自动带默认值。
+    // 新增 / 修改标签只改 annotation_schema.js，本页无需改动。
+    const FIELD_DEFS = ANNOTATION_SCHEMA.filter((f) => !f.system);
+
+    const state = {
+      category: '', status: 'unlabeled', date: '', offset: 0, limit: 60, total: 0,
+      current: null, mode: 'single', selected: new Set(), pageSamples: [], dict: {}, lastIndex: null, cols: '4', vlm: {},
+      models: [], modelKey: '', filters: {}, vlmFilter: '',
+      carryOver: false, lastTags: {},
+    };
+
+    // 标注项筛选：用右侧标注字段（下拉/多选类）作为筛选条件，交给服务端按标注过滤。
+    // 多选字段（geometry_tags/material_tags）按“包含”匹配，标量字段按相等匹配。
+    const FILTERABLE_FIELDS = FIELD_DEFS.filter((d) => d.type === 'select' || d.type === 'multi');
+    // 标注项筛选的特殊值：选「未填写」时筛出该字段为空（未标注）的样本。需与服务端 EMPTY_FILTER_VALUE 保持一致。
+    const EMPTY_FILTER = '__empty__';
+
+    // “沿用上一张标签”要复用的字段：排除人工结论、复核状态、备注、物品名称。
+    // 物体属性（透明度/反光/形变/几何/材质）也一并沿用——连续标同一/同批物体时它们恒定；
+    // 物品名称单独排除（换物体时不要带旧名），其余物体属性仍可被字典默认值兜底。
+    const CARRY_KEYS_EXCLUDE = new Set(['human_result', 'review_note', 'bm_review_status', 'object_name']);
+    const CARRY_FIELDS = FIELD_DEFS.filter((d) => !d.system && !CARRY_KEYS_EXCLUDE.has(d.key));
+
+    function carryHasTags() {
+      return state.lastTags && Object.keys(state.lastTags).length > 0;
+    }
+
+    function renderFieldFilters() {
+      const box = $('fieldFilters');
+      const opts = FILTERABLE_FIELDS.map((f) => {
+        const cur = state.filters[f.key] || '';
+        const list = [`<option value="">${f.label}</option>`, `<option value="${EMPTY_FILTER}" ${cur === EMPTY_FILTER ? 'selected' : ''}>未填写</option>`]
+          .concat((f.options || []).map((o) => `<option value="${o}" ${cur === o ? 'selected' : ''}>${o}</option>`)).join('');
+        return `<select data-fkey="${f.key}" title="${f.label}" style="width:auto;padding:3px 6px;">${list}</select>`;
+      }).join('');
+      const hasAny = Object.keys(state.filters).some((k) => state.filters[k]);
+      box.innerHTML = opts + (hasAny ? '<button id="fFilterClear" class="ghost" style="padding:3px 8px;">清空筛选</button>' : '');
+      box.querySelectorAll('select[data-fkey]').forEach((sel) => {
+        sel.addEventListener('change', (e) => {
+          const key = sel.dataset.fkey;
+          if (e.target.value) state.filters[key] = e.target.value; else delete state.filters[key];
+          state.offset = 0; state.selected.clear();
+          loadSamples();
+        });
+      });
+      const clr = $('fFilterClear');
+      if (clr) clr.addEventListener('click', () => { state.filters = {}; state.offset = 0; state.selected.clear(); loadSamples(); });
+    }
+
+    // 读取模型注册表，填充「模型版本」下拉；默认选第一项（线上版本）。
+    async function loadModels() {
+      const sel = $('modelSel');
+      try {
+        const r = await fetch('/api/models');
+        const data = await r.json();
+        state.models = (data && data.models) || [];
+      } catch (e) { state.models = []; }
+      if (!state.models.length) {
+        sel.innerHTML = '<option value="">未配置模型</option>';
+        state.modelKey = '';
+        return;
+      }
+      sel.innerHTML = state.models.map((m) => `<option value="${m.key}">${m.label || m.key}</option>`).join('');
+      state.modelKey = state.models[0].key;
+      sel.value = state.modelKey;
+    }
+
+    function modelLabel(key) {
+      const m = state.models.find((x) => x.key === key);
+      if (m) return m.label || m.key;
+      const at = String(key || '').indexOf('@');
+      if (at > 0) return key.slice(0, at) + ' @ ' + key.slice(at + 1);
+      return key || '';
+    }
+
+    function vlmRequestBody(extra) {
+      return Object.assign({ model_key: state.modelKey }, ModelEndpointUi.getPayload(), extra || {});
+    }
+
+    function defaultModelEndpoint() {
+      const m = state.models.find((x) => x.key === state.modelKey);
+      return m && m.endpoint ? ModelEndpointUi.parseEndpointUrl(m.endpoint) : null;
+    }
+
+    const $ = (id) => document.getElementById(id);
+
+    async function loadCategories() {
+      const r = await fetch('/api/pool/status');
+      const data = await r.json();
+      const cats = Object.keys(data.samples_per_category || {});
+      const sel = $('fCategory');
+      sel.innerHTML = '<option value="">全部类别</option>' +
+        cats.map((c) => `<option value="${c}">${c} (${data.samples_per_category[c]})</option>`).join('');
+    }
+
+    async function loadDictionary() {
+      try {
+        const r = await fetch('/api/pool/dictionary');
+        const data = await r.json();
+        state.dict = data.categories || {};
+      } catch (e) { state.dict = {}; }
+    }
+
+    // 用当前结果里的可选采集日期刷新下拉，保留当前选择（即使因筛选暂时不在列表里）。
+    function renderDateOptions(dates) {
+      const sel = $('fDate');
+      const cur = state.date;
+      let opts = '<option value="">全部日期</option>' +
+        dates.map((d) => `<option value="${d.date}">${d.date} (${d.count})</option>`).join('');
+      if (cur && !dates.some((d) => d.date === cur)) {
+        opts += `<option value="${cur}">${cur} (0)</option>`;
+      }
+      sel.innerHTML = opts;
+      sel.value = cur;
+    }
+
+    async function loadSamples() {
+      const params = new URLSearchParams({
+        category: state.category, ann_status: state.status,
+        limit: String(state.limit), offset: String(state.offset),
+      });
+      if (state.date) params.set('date', state.date);
+      if (state.modelKey) params.set('vlm_model', state.modelKey);
+      if (state.vlmFilter) params.set('vlm_filter', state.vlmFilter);
+      if (Object.keys(state.filters).some((k) => state.filters[k])) params.set('filters', JSON.stringify(state.filters));
+      const r = await fetch('/api/pool/samples?' + params.toString());
+      const data = await r.json();
+      // 用持久化的模型结果回填会话缓存（按所选模型版本），让缩略图刷新后仍显示模型结果。
+      (data.samples || []).forEach((s) => {
+        if (s.vlm_pred) {
+          state.vlm[s.sample_id] = { pred: s.vlm_pred, raw: s.vlm_raw || '', model: modelLabel(s.vlm_model_key) || '', model_key: s.vlm_model_key || '' };
+        } else {
+          delete state.vlm[s.sample_id];
+        }
+      });
+      renderDateOptions(data.available_dates || []);
+      renderFieldFilters();
+      state.total = data.total;
+      state.pageSamples = data.samples || [];
+      state.lastIndex = null;
+      const pct = data.category_total ? Math.round((data.labeled_in_category / data.category_total) * 100) : 0;
+      $('progress').textContent = `本类别已标注 ${data.labeled_in_category} / ${data.category_total}（${pct}%）`;
+      $('barFill').style.width = pct + '%';
+      const from = data.total ? state.offset + 1 : 0;
+      const to = Math.min(state.offset + state.limit, data.total);
+      $('bPageInfo').textContent = `${from}-${to} / ${data.total}`;
+      const atStart = state.offset <= 0;
+      const atEnd = state.offset + state.limit >= data.total;
+      $('bPrev').disabled = atStart; $('bNext').disabled = atEnd;
+      renderGrid();
+      // 右侧详情自动显示：当前没有载入样本（或已不在本页）时，自动载入本页第一张，免去手动点击。
+      if (state.pageSamples.length) {
+        const curId = state.current && state.current.sample_id;
+        const stillHere = curId && state.pageSamples.some((s) => s.sample_id === curId);
+        if (!stillHere) openSample(state.pageSamples[0].sample_id);
+      }
+    }
+
+    function applyGridCols() {
+      const grid = $('grid');
+      grid.style.gridTemplateColumns = state.cols === 'auto'
+        ? 'repeat(auto-fill, minmax(118px, 1fr))'
+        : `repeat(${state.cols}, 1fr)`;
+    }
+
+    function renderGrid() {
+      const grid = $('grid');
+      applyGridCols();
+      if (!state.pageSamples.length) {
+        grid.innerHTML = '<div class="empty">没有符合条件的样本</div>';
+        return;
+      }
+      const curId = state.current && state.current.sample_id;
+      const showTags = !($('showTags') && !$('showTags').checked);
+      grid.innerHTML = state.pageSamples.map((s) => {
+        const img = `/api/pool/image?cam=1&sample_id=${encodeURIComponent(s.sample_id)}`;
+        const sel = state.selected.has(s.sample_id);
+        const focus = s.sample_id === curId;
+        const humanPart = s.labeled ? `<span class="done-dot">●</span> 人:${s.human_result || ''}` : '未标';
+        const modelPart = vlmBadgeText(s.sample_id);
+        const fname = s.cam1_name || '';
+        const mtag = vlmTagHtml(s.sample_id, s.human_result);
+        const tags = showTags && Array.isArray(s.ann_tags) ? s.ann_tags : [];
+        const tagLine = tags.length
+          ? `<div class="tagline" title="${escAttr(tags.map((t) => t.l + '：' + t.v).join(' · '))}">${tags.map((t) => `<span class="tg">${escHtml(t.v)}</span>`).join('')}</div>`
+          : '';
+        return `<div class="thumb ${sel ? 'sel' : ''} ${focus ? 'focus' : ''}" data-id="${s.sample_id}" title="${escAttr(fname)} · 单击=看详情 · Shift+单击=选中/取消(可跳着选) · 勾选框=选中 · 🔍=看大图">
+          <div class="thumb-img">
+            <input type="checkbox" class="chk" ${sel ? 'checked' : ''} title="勾选加入批量">
+            <button type="button" class="zoom" title="查看大图">🔍</button>
+            ${mtag}
+            <img src="${img}" loading="lazy" alt="" draggable="false">
+          </div>
+          <div class="thumb-info"><div class="badge-line">${humanPart}${modelPart}</div>${tagLine}${fname ? `<div class="fname" title="${escAttr(fname)}">${fname}</div>` : ''}</div>
+        </div>`;
+      }).join('');
+      grid.querySelectorAll('.thumb').forEach((el, idx) => {
+        const id = el.dataset.id;
+        // 单击图片=看详情（不会误选）；Shift+单击=选中/取消这一张（可跳着挑）；Shift+拖动=框选一段；勾选框=同样选中；🔍=看大图。
+        el.addEventListener('click', (e) => {
+          if (e.target.closest('.chk, .zoom')) return;
+          if (suppressClick) { suppressClick = false; return; } // 刚拖完框选，忽略这次误触发的单击
+          if (e.shiftKey) { e.preventDefault(); toggleOne(id); } else { openSample(id); }
+        });
+        el.querySelector('.chk').addEventListener('click', (e) => { e.stopPropagation(); toggleSelect(idx, e); });
+        el.querySelector('.zoom').addEventListener('click', (e) => { e.stopPropagation(); openLightbox(id); });
+      });
+      updateSelCount();
+    }
+
+    function escAttr(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
+    function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])); }
+
+    // 缩略图底部徽标里的模型结果文字（仅在本会话跑过模型时有值）。
+    function vlmBadgeText(sampleId) {
+      const v = state.vlm[sampleId];
+      if (!v) return '';
+      const predText = v.pred === 'G' ? '夹住' : v.pred === 'N' ? '未夹住' : '无法识别';
+      return ` · 模:${predText}`;
+    }
+
+    // 生成缩略图上的模型结果小标签；有人工结果时对比标 ✓/✗。
+    function vlmTagHtml(sampleId, humanResult) {
+      const v = state.vlm[sampleId];
+      if (!v) return '';
+      const predText = v.pred === 'G' ? '夹住' : v.pred === 'N' ? '未夹住' : '无法识别';
+      let cls = 'na', mark = '';
+      if (v.pred === 'G' || v.pred === 'N') {
+        const humanLabel = humanResult === '夹住' ? 'G' : humanResult === '未夹住' ? 'N' : '';
+        if (humanLabel) { const bad = humanLabel !== v.pred; cls = bad ? 'bad' : 'ok'; mark = bad ? ' ✗' : ' ✓'; }
+      }
+      const title = `模型原始：${v.raw || v.pred}${v.model ? ' · ' + v.model : ''}`;
+      return `<div class="mtag ${cls}" title="${String(title).replace(/"/g, '&quot;')}">模:${predText}${mark}</div>`;
+    }
+
+    function openLightbox(sampleId) {
+      $('lbImg').src = `/api/pool/image?cam=1&sample_id=${encodeURIComponent(sampleId)}`;
+      const v = state.vlm[sampleId];
+      const extra = v ? ` · 模型:${v.pred === 'G' ? '夹住' : v.pred === 'N' ? '未夹住' : '无法识别'}` : '';
+      $('lbCap').textContent = sampleId + extra;
+      $('lightbox').classList.add('open');
+    }
+    function closeLightbox() { $('lightbox').classList.remove('open'); $('lbImg').src = ''; }
+
+    // 把焦点样本切到上/下一张（基于当前页顺序），并滚动到可见。
+    function focusByOffset(delta) {
+      const samples = state.pageSamples;
+      if (!samples.length) return;
+      const curId = state.current && state.current.sample_id;
+      let idx = samples.findIndex((s) => s.sample_id === curId);
+      if (idx < 0) idx = delta > 0 ? -1 : 0;
+      let ni = idx + delta;
+      ni = Math.max(0, Math.min(samples.length - 1, ni));
+      const target = samples[ni];
+      if (!target) return;
+      openSample(target.sample_id);
+      const el = document.querySelector(`.thumb[data-id="${CSS.escape(target.sample_id)}"]`);
+      if (el) el.scrollIntoView({ block: 'nearest' });
+      if ($('lightbox').classList.contains('open')) openLightbox(target.sample_id);
+    }
+
+    // Shift+单击一张：选中/取消这一张（不影响其它，可跳着挑）。
+    function toggleOne(id) {
+      if (state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
+      const idx = state.pageSamples.findIndex((s) => s.sample_id === id);
+      if (idx >= 0) state.lastIndex = idx;
+      renderGrid();
+    }
+
+    // 批量勾选/取消当前焦点样本。
+    function toggleSelectCurrent() {
+      const curId = state.current && state.current.sample_id;
+      if (!curId) return;
+      const idx = state.pageSamples.findIndex((s) => s.sample_id === curId);
+      if (idx < 0) return;
+      if (state.selected.has(curId)) state.selected.delete(curId); else state.selected.add(curId);
+      state.lastIndex = idx;
+      renderGrid();
+    }
+
+    // 勾选框：切换批量选择；按住 Shift 选中上次锚点到当前的整段。
+    function toggleSelect(idx, e) {
+      const samples = state.pageSamples;
+      if (e.shiftKey && state.lastIndex !== null && state.lastIndex !== undefined) {
+        const lo = Math.min(state.lastIndex, idx);
+        const hi = Math.max(state.lastIndex, idx);
+        for (let i = lo; i <= hi; i += 1) state.selected.add(samples[i].sample_id);
+      } else {
+        const id = samples[idx].sample_id;
+        if (state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
+        state.lastIndex = idx;
+      }
+      renderGrid();
+    }
+
+    function updateSelCount() {
+      const n = state.selected.size;
+      const sc = $('selCount'); if (sc) sc.textContent = String(n);
+      const bv = $('batchVlm'); if (bv && !bv.dataset.running) { bv.textContent = `批量跑模型 (${n})`; bv.disabled = n === 0; }
+      const rb = $('runVlmBtn'); if (rb && !rb.dataset.running) { rb.textContent = n > 0 ? `跑模型(勾选 ${n} 张)` : '跑模型(这张)'; }
+      const sb = $('saveBtn'); if (sb && !sb.dataset.saving) {
+        sb.textContent = n > 0 ? `保存标注(勾选 ${n} 张)` : '保存标注';
+        sb.title = n > 0
+          ? `批量保存：把当前表单里填了值的字段套用到勾选的 ${n} 张样本（空字段不覆盖、自动推导 G/N）`
+          : '保存当前这张样本的标注';
+      }
+    }
+
+    function highlightActive() {
+      const cur = state.current && state.current.sample_id;
+      document.querySelectorAll('.thumb').forEach((el) => {
+        el.classList.toggle('focus', el.dataset.id === cur);
+      });
+    }
+
+    async function openSample(sampleId) {
+      const r = await fetch('/api/pool/sample?sample_id=' + encodeURIComponent(sampleId));
+      const data = await r.json();
+      if (!data.ok) { alert(data.message || '加载失败'); return; }
+      state.current = data.entry;
+      renderDetail(data.entry, data.annotation || {}, data.defaults || {});
+      highlightActive();
+    }
+
+    // 计算字段的有效值：优先用已保存标注，否则用字典默认值（仅 dict 字段）。
+    // 返回 { value, fromDict }。
+    function effectiveValue(def, ann, defaults) {
+      const saved = ann[def.key];
+      const hasSaved = def.type === 'multi'
+        ? Array.isArray(saved) && saved.length > 0
+        : saved !== undefined && saved !== null && saved !== '';
+      if (hasSaved) return { value: saved, fromDict: false };
+      if (def.dict && defaults && defaults[def.key] !== undefined) {
+        return { value: defaults[def.key], fromDict: true };
+      }
+      return { value: def.type === 'multi' ? [] : '', fromDict: false };
+    }
+
+    function renderField(def, ann, defaults) {
+      const { value: val, fromDict } = effectiveValue(def, ann, defaults);
+      const badge = fromDict ? '<span class="dict-badge">字典默认</span>' : '';
+      // 人工结果是每张必做的二选一高频操作：渲染成两个大按钮 + 隐藏 input（保留 data-key，
+      // 让收集/校验/VLM 对照逻辑不变），并支持快捷键 G/N。
+      if (def.key === 'human_result') {
+        return `<div class="full hr-field">
+          <label class="fl ${def.required ? 'req' : ''}">${def.label}${badge}</label>
+          <div class="hr-btns" data-hr>
+            <button type="button" class="hr-btn g ${val === '夹住' ? 'on' : ''}" data-val="夹住">夹住<span class="k">G</span></button>
+            <button type="button" class="hr-btn n ${val === '未夹住' ? 'on' : ''}" data-val="未夹住">未夹住<span class="k">N</span></button>
+          </div>
+          <input type="hidden" data-key="${def.key}" value="${val ? String(val).replace(/"/g, '&quot;') : ''}">
+        </div>`;
+      }
+      if (def.type === 'text') {
+        return `<div class="${def.key === 'review_note' ? 'full' : ''}">
+          <label class="fl ${def.required ? 'req' : ''}">${def.label}${badge}</label>
+          <input type="text" data-key="${def.key}" value="${val ? String(val).replace(/"/g, '&quot;') : ''}">
+        </div>`;
+      }
+      if (def.type === 'multi') {
+        const arr = Array.isArray(val) ? val : [];
+        return `<div class="full">
+          <label class="fl">${def.label}${badge}</label>
+          <div class="multi" data-key="${def.key}">
+            ${def.options.map((o) => `<label class="${arr.includes(o) ? 'on' : ''}"><input type="checkbox" value="${o}" ${arr.includes(o) ? 'checked' : ''}>${o}</label>`).join('')}
+          </div>
+        </div>`;
+      }
+      const opts = ['<option value="">—</option>'].concat(
+        def.options.map((o) => `<option value="${o}" ${val === o ? 'selected' : ''}>${o}</option>`)
+      ).join('');
+      return `<div>
+        <label class="fl ${def.required ? 'req' : ''}">${def.label}${badge}</label>
+        <select data-key="${def.key}">${opts}</select>
+      </div>`;
+    }
+
+    // 生成分组表单 HTML。batch=true 时不显示必填星号、不带字典默认值（留空表示不改动）。
+    function buildFormHtml(ann, defaults, batch) {
+      let lastGroup = '';
+      return FIELD_DEFS.map((def) => {
+        let prefix = '';
+        if (def.group && def.group !== lastGroup) { prefix = `<div class="grp">${def.group}</div>`; lastGroup = def.group; }
+        const d = batch ? Object.assign({}, def, { required: false }) : def;
+        return prefix + renderField(d, batch ? {} : ann, batch ? {} : defaults);
+      }).join('');
+    }
+
+    // 设置当前表单的人工结果（大按钮/快捷键共用）：写隐藏 input 值并高亮对应按钮。
+    function setHumanResult(value) {
+      const wrap = document.querySelector('#form [data-hr]');
+      if (!wrap) return;
+      const input = document.querySelector('#form input[data-key="human_result"]');
+      if (input) input.value = value;
+      wrap.querySelectorAll('.hr-btn').forEach((b) => b.classList.toggle('on', b.dataset.val === value));
+    }
+
+    // 级联：夹爪张开大小（张开大/张开小）只有在「夹爪状态=张开」时才有意义。
+    // 其它状态（闭合/半闭合/不清楚/未选）下，强制夹爪张开大小为「—」并锁定下拉，
+    // 避免出现“闭合却又标了张开大小”的矛盾数据。锁定时 value='' 仍能被 collectFields 读取并保存为空。
+    function applyOpenSizeCascade() {
+      const stateSel = document.querySelector('#form [data-key="gripper_state"]');
+      const sizeSel = document.querySelector('#form [data-key="gripper_open_size"]');
+      if (!stateSel || !sizeSel) return;
+      const isOpen = stateSel.value === '张开';
+      if (isOpen) {
+        sizeSel.disabled = false;
+        sizeSel.removeAttribute('title');
+      } else {
+        sizeSel.value = '';
+        sizeSel.disabled = true;
+        sizeSel.title = '仅当夹爪状态为「张开」时填写';
+      }
+    }
+
+    // 级联：当「夹爪-物体关系=对准接触」时，夹爪已对准并接触到物体，
+    // 「夹爪-桌面关系」此时无意义，强制为「—」并锁定下拉。
+    // 锁定时 value='' 仍能被 collectFields 读取并保存为空。
+    function applyTableRelationCascade() {
+      const objSel = document.querySelector('#form [data-key="gripper_object_relation"]');
+      const tableSel = document.querySelector('#form [data-key="gripper_table_relation"]');
+      if (!objSel || !tableSel) return;
+      const lock = objSel.value === '对准接触';
+      if (lock) {
+        tableSel.value = '';
+        tableSel.disabled = true;
+        tableSel.title = '夹爪-物体关系为「对准接触」时不填';
+      } else {
+        tableSel.disabled = false;
+        tableSel.removeAttribute('title');
+      }
+    }
+
+    // 级联（硬联动）：人工改「夹爪-物体关系」时，按包围程度强制带出「夹取深度」。
+    //   部分包围 -> 浅； 充分包围 -> 深。其他取值不动深度。
+    // 只在用户主动 change 时调用，不在初始渲染调用，避免查看已存标注时被悄悄覆盖。
+    function applyGraspDepthCascade() {
+      const objSel = document.querySelector('#form [data-key="gripper_object_relation"]');
+      const depthSel = document.querySelector('#form [data-key="grasp_depth"]');
+      if (!objSel || !depthSel) return;
+      const map = { '部分包围': '浅', '充分包围': '深' };
+      const target = map[objSel.value];
+      if (target) depthSel.value = target;
+    }
+
+    function attachMultiToggles(container) {
+      container.querySelectorAll('.multi label').forEach((lab) => {
+        lab.querySelector('input').addEventListener('change', (e) => {
+          lab.classList.toggle('on', e.target.checked);
+        });
+      });
+    }
+
+    // 把“上一张标签”叠加到未标注样本的空字段上（只影响展示/预填，不改已存标注）。
+    // 已有标注的字段优先保留自身值；human_result/物品名称等不在 CARRY_FIELDS 内不受影响。
+    function applyCarryToAnn(ann) {
+      if (!state.carryOver || !carryHasTags()) return ann;
+      const out = Object.assign({}, ann || {});
+      for (const f of CARRY_FIELDS) {
+        const cur = out[f.key];
+        const empty = Array.isArray(cur) ? cur.length === 0 : (cur == null || cur === '');
+        if (empty && state.lastTags[f.key] !== undefined) out[f.key] = state.lastTags[f.key];
+      }
+      return out;
+    }
+
+    function renderDetail(entry, ann, defaults) {
+      const renderAnn = applyCarryToAnn(ann);
+      const fieldsHtml = buildFormHtml(renderAnn, defaults, false);
+
+      $('detail').innerHTML = `
+        <div class="meta" style="margin-top:0;margin-bottom:6px;">${entry.sample_id} · ${entry.object_category} · ${entry.source_subdir || ''}${ann && ann.updated_at ? ' · 上次标注 ' + ann.updated_at : ''}</div>
+        <div class="form-grid" id="form">${fieldsHtml}</div>
+        <div class="saverow">
+          <button class="primary" id="saveBtn" title="没勾选=保存当前这张；左侧有勾选=把当前表单填了值的字段批量套用到所有勾选样本">保存标注</button>
+          <button class="ghost" id="runVlmBtn" title="有勾选时对全部勾选样本跑模型；没勾选时只跑当前这张（不写入任何 run）">跑模型(这张)</button>
+          <button class="ghost" id="applyLastBtn" title="把上一张保存的标签套用到当前表单（不含人工结果/物品名称）"${carryHasTags() ? '' : ' disabled'}>套用上一张</button>
+          <button class="ghost" id="clearSelBtn" title="取消左侧已勾选的样本（与顶部「取消勾选」相同）">取消勾选</button>
+          <label style="font-size:12px;display:flex;gap:6px;align-items:center;"><input type="checkbox" id="autoNext" checked>保存后自动下一张</label>
+          <label style="font-size:12px;display:flex;gap:6px;align-items:center;" title="打开未标注的新图时，自动带出上一张保存的标签（不含人工结果/物品名称），相似图只需微调"><input type="checkbox" id="carryOver" ${state.carryOver ? 'checked' : ''}>沿用上一张标签</label>
+          <button class="ghost danger" id="deleteBtn" title="永久删除这张样本的 cam0/cam1 原图并从样本池移除（不可恢复）">删除图片</button>
+          <span class="msg" id="saveMsg"></span>
+        </div>
+        <div class="msg" id="vlmMsg" style="margin-top:6px;"></div>`;
+
+      attachMultiToggles($('form'));
+      document.querySelectorAll('#form [data-hr] .hr-btn').forEach((b) => {
+        b.addEventListener('click', () => setHumanResult(b.dataset.val));
+      });
+      const gripperStateSel = document.querySelector('#form [data-key="gripper_state"]');
+      if (gripperStateSel) gripperStateSel.addEventListener('change', applyOpenSizeCascade);
+      applyOpenSizeCascade();
+      const gripperObjSel = document.querySelector('#form [data-key="gripper_object_relation"]');
+      if (gripperObjSel) gripperObjSel.addEventListener('change', () => { applyTableRelationCascade(); applyGraspDepthCascade(); });
+      applyTableRelationCascade();
+      $('carryOver').addEventListener('change', (e) => { state.carryOver = e.target.checked; });
+      $('applyLastBtn').addEventListener('click', applyLastTagsToForm);
+      $('clearSelBtn').addEventListener('click', clearSelection);
+      $('saveBtn').addEventListener('click', () => saveAnnotation(entry.sample_id));
+      $('runVlmBtn').addEventListener('click', () => {
+        // 有勾选 -> 对全部勾选跑（符合“勾几张就填几张”的预期）；没勾选 -> 只跑当前这张。
+        if (state.selected.size > 0) runVlmBatch(); else runVlmOnSample(entry.sample_id);
+      });
+      $('deleteBtn').addEventListener('click', () => deleteSample(entry.sample_id));
+      updateSelCount();
+    }
+
+    // 硬删除当前样本：二次确认后永久删除 cam0/cam1 原图并从样本池移除（不可恢复）。
+    async function deleteSample(sampleId) {
+      if (!sampleId) return;
+      if (!confirm(`确认永久删除这张样本？\n${sampleId}\n\n会删除 cam0/cam1 原图并从样本池移除，不可恢复。`)) return;
+      const btn = $('deleteBtn');
+      if (btn) btn.disabled = true;
+      setMsg('saveMsg', '删除中…', false);
+      // 删除后优先跳到下一张；没有则回退到本页第一张。
+      const curIdx = state.pageSamples.findIndex((s) => s.sample_id === sampleId);
+      const nextId = curIdx >= 0 && state.pageSamples[curIdx + 1] ? state.pageSamples[curIdx + 1].sample_id : null;
+      try {
+        const r = await fetch('/api/pool/sample/delete', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sample_id: sampleId }),
+        });
+        const d = await r.json();
+        if (!r.ok || !d.ok) throw new Error(d.message || `HTTP ${r.status}`);
+        state.selected.delete(sampleId);
+        const failNote = Array.isArray(d.failed) && d.failed.length ? `（${d.failed.length} 个文件未能删除）` : '';
+        setMsg('saveMsg', `已删除（删除原图 ${Array.isArray(d.deleted_files) ? d.deleted_files.length : 0} 个）${failNote}`, !!failNote);
+        await loadSamples();
+        let target = nextId && state.pageSamples.some((s) => s.sample_id === nextId) ? nextId : null;
+        if (!target) { const fb = state.pageSamples.find((s) => !s.labeled) || state.pageSamples[0]; target = fb ? fb.sample_id : null; }
+        if (target) openSample(target);
+        else $('detail').innerHTML = '<div class="empty">本页没有样本了</div>';
+      } catch (e) {
+        setMsg('saveMsg', '删除失败：' + (e.message || e), true);
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    // 单样本即时跑模型：对照预测与当前人工结果，不写入 run / records。
+    async function runVlmOnSample(sampleId) {
+      const btn = $('runVlmBtn');
+      if (!btn) return;
+      btn.disabled = true;
+      const old = btn.textContent;
+      btn.textContent = '跑模型中…';
+      setMsg('vlmMsg', '正在调用模型…', false);
+      try {
+        const r = await fetch('/api/pool/vlm', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(vlmRequestBody({ sample_id: sampleId })),
+        });
+        const d = await r.json();
+        if (!r.ok || !d.ok) throw new Error(d.error || d.message || '模型调用失败');
+        const predText = d.pred === 'G' ? '夹住' : d.pred === 'N' ? '未夹住' : '无法识别';
+        const humanSel = document.querySelector('#form [data-key="human_result"]');
+        const human = humanSel ? humanSel.value : '';
+        const humanLabel = human === '夹住' ? 'G' : human === '未夹住' ? 'N' : '';
+        let cmp = '';
+        let bad = false;
+        if (humanLabel && d.pred !== 'Unknown') {
+          bad = humanLabel !== d.pred;
+          cmp = bad ? ' · 与人工不一致 ✗' : ' · 与人工一致 ✓';
+        }
+        const mlabel = modelLabel(d.model_key || state.modelKey) || d.model || '';
+        state.vlm[sampleId] = { pred: d.pred, raw: d.raw, model: mlabel, model_key: d.model_key || state.modelKey };
+        renderGrid();
+        setMsg('vlmMsg', `模型预测：${predText}（原始：${d.raw || d.pred}）${mlabel ? ' · ' + mlabel : ''}${cmp}`, bad);
+      } catch (e) {
+        setMsg('vlmMsg', e.message || String(e), true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = old;
+      }
+    }
+
+    // 只更新某张缩略图上的模型结果标签，避免整网格重绘。
+    function refreshThumbVlm(sampleId) {
+      const el = document.querySelector(`.thumb[data-id="${CSS.escape(sampleId)}"]`);
+      if (!el) return;
+      const s = state.pageSamples.find((x) => x.sample_id === sampleId);
+      const old = el.querySelector('.mtag');
+      if (old) old.remove();
+      const html = vlmTagHtml(sampleId, s ? s.human_result : '');
+      const imgBox = el.querySelector('.thumb-img') || el;
+      if (html) imgBox.insertAdjacentHTML('beforeend', html);
+    }
+
+    // 批量跑模型的进度/结果提示：同时更新批量条和右侧详情区（两处入口都能看到）。
+    function setBatchMsg(text) {
+      const a = $('batchVlmMsg'); if (a) a.textContent = text;
+      const b = $('vlmMsg'); if (b) b.textContent = text;
+    }
+
+    // 对勾选的样本逐个调用模型（顺序执行，避免压垮模型服务），结果实时显示在图片上。
+    // 关键约定：有效勾选始终保留；只有“找不到图片/样本已失效”的才会被自动取消勾选并提示，
+    // 避免这些跑不出结果的残留 ID 反复拖累后续批量。
+    async function runVlmBatch() {
+      const ids = Array.from(state.selected);
+      if (!ids.length) { setBatchMsg('请先勾选要跑模型的样本'); return; }
+      if (ids.length > 10 && !confirm(`将对 ${ids.length} 张逐个调用模型，可能较慢，确定吗？`)) return;
+      const btn = $('batchVlm');
+      const detailBtn = $('runVlmBtn');
+      btn.dataset.running = '1'; btn.disabled = true;
+      if (detailBtn) { detailBtn.dataset.running = '1'; detailBtn.disabled = true; detailBtn.textContent = '跑模型中…'; }
+      let ok = 0, fail = 0;
+      const failures = [];
+      const stale = []; // 找不到图片/样本不存在：自动取消勾选
+      for (let i = 0; i < ids.length; i += 1) {
+        const id = ids[i];
+        btn.textContent = `跑模型中… ${i + 1}/${ids.length}`;
+        setBatchMsg(`跑模型中… ${i + 1}/${ids.length}（成功 ${ok} · 失败 ${fail}）`);
+        try {
+          const r = await fetch('/api/pool/vlm', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(vlmRequestBody({ sample_id: id })),
+          });
+          const d = await r.json();
+          if (!r.ok || !d.ok) throw new Error(d.error || d.message || `HTTP ${r.status}`);
+          state.vlm[id] = { pred: d.pred, raw: d.raw, model: modelLabel(d.model_key || state.modelKey) || d.model, model_key: d.model_key || state.modelKey };
+          ok += 1;
+        } catch (e) {
+          fail += 1;
+          const m = e.message || String(e);
+          failures.push(`${id}：${m}`);
+          if (/找不到 *cam|不存在|未找到|not\s*found/i.test(m)) stale.push(id);
+        }
+      }
+      // 失效样本（找不到图片）自动取消勾选，其余有效勾选全部保留。
+      stale.forEach((id) => state.selected.delete(id));
+      delete btn.dataset.running;
+      if (detailBtn) delete detailBtn.dataset.running;
+      // 统一重绘，确保所有成功样本的模型标签都渲染出来。
+      renderGrid();
+      let msg = `完成：成功 ${ok} · 失败 ${fail} / 共 ${ids.length}`;
+      if (stale.length) msg += `；其中 ${stale.length} 张样本已失效(找不到图片)，已自动取消勾选`;
+      if (failures.length) console.warn('批量跑模型失败明细：', failures);
+      setBatchMsg(msg);
+      updateSelCount();
+    }
+
+    function collectFields(formId) {
+      const out = {};
+      document.querySelectorAll('#' + formId + ' [data-key]').forEach((el) => {
+        const key = el.dataset.key;
+        if (el.classList.contains('multi')) {
+          out[key] = Array.from(el.querySelectorAll('input:checked')).map((i) => i.value);
+        } else {
+          out[key] = el.value;
+        }
+      });
+      return out;
+    }
+
+    // 记录“上一张”里可沿用的标签（只存 CARRY_FIELDS 中非空的值），供后续相似图复用。
+    function captureLastTags(fields) {
+      const tags = {};
+      for (const f of CARRY_FIELDS) {
+        const v = fields[f.key];
+        const empty = Array.isArray(v) ? v.length === 0 : (v == null || v === '');
+        if (!empty) tags[f.key] = Array.isArray(v) ? v.slice() : v;
+      }
+      state.lastTags = tags;
+    }
+
+    // 手动把“上一张标签”套用到当前表单（下拉 / 多选），不含人工结果与物品名称。
+    function applyLastTagsToForm() {
+      if (!carryHasTags()) { setMsg('saveMsg', '还没有可套用的上一张标签', true); return; }
+      for (const f of CARRY_FIELDS) {
+        const v = state.lastTags[f.key];
+        if (v === undefined) continue;
+        if (f.type === 'multi') {
+          const box = document.querySelector(`#form .multi[data-key="${f.key}"]`);
+          if (!box) continue;
+          const set = new Set(Array.isArray(v) ? v : []);
+          box.querySelectorAll('label').forEach((lab) => {
+            const inp = lab.querySelector('input');
+            const on = set.has(inp.value);
+            inp.checked = on;
+            lab.classList.toggle('on', on);
+          });
+        } else {
+          const sel = document.querySelector(`#form [data-key="${f.key}"]`);
+          if (sel) sel.value = v;
+        }
+      }
+      applyOpenSizeCascade();
+      applyTableRelationCascade();
+      setMsg('saveMsg', '已套用上一张标签（不含人工结果/物品名称）', false);
+    }
+
+    // 取消左侧勾选（顶部与右侧「取消勾选」共用）。
+    function clearSelection() {
+      state.selected.clear();
+      renderGrid();
+    }
+
+    // 保存标注：
+    // - 左侧有勾选 = 批量保存：把当前表单里“填了值”的字段一次性套用到所有勾选样本（空字段不覆盖，自动推导 G/N）。
+    // - 没有勾选 = 单图保存当前这张（保留必填校验与“保存后自动下一张”）。
+    async function saveAnnotation(sampleId) {
+      const fields = collectFields('form');
+      const selIds = Array.from(state.selected);
+      const btn = $('saveBtn');
+
+      if (selIds.length > 0) {
+        if (!btn) return;
+        btn.dataset.saving = '1'; btn.disabled = true;
+        setMsg('saveMsg', `批量保存 ${selIds.length} 张中…`, false);
+        try {
+          const r = await fetch('/api/pool/annotate-batch', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sample_ids: selIds, fields, operator: $('operator').value || '' }),
+          });
+          const d = await r.json();
+          if (!r.ok || !d.ok) throw new Error(d.message || `HTTP ${r.status}`);
+          const miss = Array.isArray(d.missing) ? d.missing.length : 0;
+          const flds = Array.isArray(d.applied_fields) ? d.applied_fields.length : 0;
+          setMsg('saveMsg', `已批量保存 ${d.applied} 张（套用 ${flds} 个字段）${miss ? `，${miss} 张样本不存在已跳过` : ''}`, false);
+          await loadSamples();
+        } catch (e) {
+          setMsg('saveMsg', '批量保存失败：' + (e.message || e), true);
+        } finally {
+          delete btn.dataset.saving; btn.disabled = false;
+          updateSelCount();
+        }
+        return;
+      }
+
+      const required = FIELD_DEFS.filter((d) => d.required).map((d) => d.key);
+      for (const k of required) {
+        if (!fields[k]) { setMsg('saveMsg', '请先填写必填项（带 * 的字段）', true); return; }
+      }
+      $('saveBtn').disabled = true;
+      setMsg('saveMsg', '保存中…', false);
+      const r = await fetch('/api/pool/annotate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sample_id: sampleId, fields, operator: $('operator').value || '' }),
+      });
+      const data = await r.json();
+      if (!data.ok) { $('saveBtn').disabled = false; setMsg('saveMsg', data.message || '保存失败', true); return; }
+      $('saveBtn').disabled = false;
+      setMsg('saveMsg', '已保存', false);
+      captureLastTags(fields);
+
+      const curIdx = state.pageSamples.findIndex((s) => s.sample_id === sampleId);
+      const nextId = curIdx >= 0 && state.pageSamples[curIdx + 1] ? state.pageSamples[curIdx + 1].sample_id : null;
+      await loadSamples();
+      if ($('autoNext') && $('autoNext').checked) {
+        let target = nextId && state.pageSamples.some((s) => s.sample_id === nextId) ? nextId : null;
+        if (!target) {
+          const fb = state.pageSamples.find((s) => !s.labeled) || state.pageSamples[0];
+          target = fb ? fb.sample_id : null;
+        }
+        if (target) openSample(target);
+      }
+    }
+
+    function setMsg(id, text, isErr) {
+      const el = $(id);
+      if (!el) return;
+      el.textContent = text;
+      el.className = 'msg ' + (isErr ? 'err' : 'ok');
+    }
+
+    $('fCategory').addEventListener('change', (e) => {
+      state.category = e.target.value; state.offset = 0; state.selected.clear();
+      state.date = '';
+      loadSamples();
+    });
+    $('fStatus').addEventListener('change', (e) => { state.status = e.target.value; state.offset = 0; loadSamples(); });
+    $('fDate').addEventListener('change', (e) => { state.date = e.target.value; state.offset = 0; loadSamples(); });
+    $('fVlm').addEventListener('change', (e) => { state.vlmFilter = e.target.value; state.offset = 0; loadSamples(); });
+    $('bPrev').addEventListener('click', () => { state.offset = Math.max(0, state.offset - state.limit); loadSamples(); });
+    $('bNext').addEventListener('click', () => { state.offset += state.limit; loadSamples(); });
+    $('bCols').addEventListener('change', (e) => { state.cols = e.target.value; applyGridCols(); });
+    if ($('showTags')) $('showTags').addEventListener('change', renderGrid);
+    $('bPageSize').addEventListener('change', (e) => { state.limit = parseInt(e.target.value, 10) || 60; state.offset = 0; loadSamples(); });
+    $('selPage').addEventListener('click', () => { state.pageSamples.forEach((s) => state.selected.add(s.sample_id)); renderGrid(); });
+    $('selClear').addEventListener('click', clearSelection);
+    $('batchVlm').addEventListener('click', runVlmBatch);
+
+    // Shift+拖动 框选：按住 Shift 在网格里拖动画矩形，框到的图加入选择（与 Shift+单击 逐张挑叠加）。
+    // 不按 Shift 的普通拖动不触发框选；普通单击仍是看详情。
+    let suppressClick = false;
+    (function setupShiftDragSelect() {
+      const grid = $('grid');
+      if (!grid) return;
+      let st = null;
+      let box = null;
+      function syncThumbClasses(sel) {
+        grid.querySelectorAll('.thumb').forEach((el) => {
+          const on = sel.has(el.dataset.id);
+          el.classList.toggle('sel', on);
+          const chk = el.querySelector('.chk'); if (chk) chk.checked = on;
+        });
+      }
+      grid.addEventListener('mousedown', (e) => {
+        if (e.button !== 0 || !e.shiftKey) return; // 只有按住 Shift 才启动框选
+        if (e.target.closest('.chk, .zoom')) return;
+        st = { x0: e.clientX, y0: e.clientY, moved: false, base: new Set(state.selected) };
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (!st) return;
+        if (!st.moved) {
+          if (Math.abs(e.clientX - st.x0) + Math.abs(e.clientY - st.y0) < 6) return;
+          st.moved = true;
+          box = document.createElement('div');
+          box.className = 'selbox';
+          document.body.appendChild(box);
+        }
+        const left = Math.min(st.x0, e.clientX), top = Math.min(st.y0, e.clientY);
+        const right = Math.max(st.x0, e.clientX), bottom = Math.max(st.y0, e.clientY);
+        box.style.left = left + 'px'; box.style.top = top + 'px';
+        box.style.width = (right - left) + 'px'; box.style.height = (bottom - top) + 'px';
+        const sel = new Set(st.base);
+        grid.querySelectorAll('.thumb').forEach((el) => {
+          const rr = el.getBoundingClientRect();
+          if (!(rr.right < left || rr.left > right || rr.bottom < top || rr.top > bottom)) sel.add(el.dataset.id);
+        });
+        state.selected = sel;
+        syncThumbClasses(sel);
+        updateSelCount();
+        e.preventDefault();
+      });
+      window.addEventListener('mouseup', () => {
+        if (!st) return;
+        const wasDrag = st.moved;
+        st = null;
+        if (box) { box.remove(); box = null; }
+        if (wasDrag) {
+          suppressClick = true;
+          setTimeout(() => { suppressClick = false; }, 0);
+        }
+      });
+    })();
+    $('modelSel').addEventListener('change', (e) => {
+      // 切换模型版本：缩略图与「模型结果」筛选都按所选版本展示，需重新拉取。
+      state.modelKey = e.target.value; state.offset = 0; loadSamples();
+    });
+    $('lightbox').addEventListener('click', closeLightbox);
+
+    // 快捷键：← →/J K 切换上一张下一张；空格选中焦点图；Enter 看大图；
+    // Ctrl/Cmd+Enter 保存当前这张；Ctrl/Cmd+A 全选本页；Esc 关大图或清空选择。
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && $('lightbox').classList.contains('open')) { e.preventDefault(); closeLightbox(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); if (state.current) saveAnnotation(state.current.sample_id); return; }
+      const tag = (e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        state.pageSamples.forEach((s) => state.selected.add(s.sample_id));
+        renderGrid();
+      } else if (e.key === 'Escape') {
+        state.selected.clear();
+        renderGrid();
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key.toLowerCase() === 'j') {
+        e.preventDefault(); focusByOffset(1);
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key.toLowerCase() === 'k') {
+        e.preventDefault(); focusByOffset(-1);
+      } else if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault(); toggleSelectCurrent();
+      } else if (e.key.toLowerCase() === 'g') {
+        if (state.current) { e.preventDefault(); setHumanResult('夹住'); }
+      } else if (e.key.toLowerCase() === 'n') {
+        if (state.current) { e.preventDefault(); setHumanResult('未夹住'); }
+      } else if (e.key === 'Enter') {
+        if (state.current) { e.preventDefault(); openLightbox(state.current.sample_id); }
+      }
+    });
+
+    (async function init() {
+      await loadModels();
+      await loadCategories();
+      await loadDictionary();
+      const epMount = $('customEpMount');
+      if (epMount && window.ModelEndpointUi) {
+        epMount.innerHTML = ModelEndpointUi.endpointUiHtml(true);
+        ModelEndpointUi.bind(epMount, { defaultEndpoint: defaultModelEndpoint });
+      }
+      await loadSamples();
+    })();
+  </script>
+</body>
+</html>

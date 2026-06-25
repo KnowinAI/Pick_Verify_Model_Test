@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pick-Verify 项目总结报告</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --bg2: #1e293b;
+    --card: #ffffff;
+    --ink: #1e293b;
+    --muted: #64748b;
+    --line: #e2e8f0;
+    --brand: #2563eb;
+    --brand-soft: #dbeafe;
+    --green: #16a34a;
+    --green-soft: #dcfce7;
+    --amber: #d97706;
+    --amber-soft: #fef3c7;
+    --red: #dc2626;
+    --red-soft: #fee2e2;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    color: var(--ink);
+    background: #f1f5f9;
+    line-height: 1.7;
+  }
+  code, .mono { font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace; }
+
+  /* Hero */
+  .hero {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+    color: #fff;
+    padding: 64px 24px 80px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: radial-gradient(circle at 20% 20%, rgba(59,130,246,.35), transparent 40%),
+                radial-gradient(circle at 80% 60%, rgba(16,185,129,.25), transparent 40%);
+    pointer-events: none;
+  }
+  .hero .eyebrow {
+    display: inline-block;
+    letter-spacing: .25em;
+    font-size: 13px;
+    color: #93c5fd;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .hero h1 { font-size: clamp(30px, 5vw, 48px); margin: 0 0 14px; font-weight: 800; }
+  .hero p { font-size: clamp(15px, 2.4vw, 19px); color: #cbd5e1; max-width: 760px; margin: 0 auto; }
+  .hero .meta { margin-top: 26px; font-size: 13px; color: #94a3b8; }
+  .hero .badge {
+    display: inline-block; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2);
+    padding: 4px 12px; border-radius: 999px; margin: 0 5px; font-size: 12px;
+  }
+
+  .wrap { max-width: 980px; margin: -48px auto 64px; padding: 0 20px; position: relative; z-index: 2; }
+
+  /* Quick nav */
+  .nav {
+    background: var(--card); border-radius: var(--radius); padding: 16px 20px;
+    box-shadow: 0 10px 30px rgba(15,23,42,.12); display: flex; flex-wrap: wrap; gap: 8px 16px;
+    margin-bottom: 28px; font-size: 14px;
+  }
+  .nav a { color: var(--brand); text-decoration: none; padding: 4px 8px; border-radius: 8px; }
+  .nav a:hover { background: var(--brand-soft); }
+
+  section.card {
+    background: var(--card); border-radius: var(--radius); padding: 28px 30px; margin-bottom: 22px;
+    box-shadow: 0 4px 18px rgba(15,23,42,.06); border: 1px solid var(--line);
+  }
+  section.card h2 {
+    font-size: 22px; margin: 0 0 6px; display: flex; align-items: center; gap: 12px;
+  }
+  section.card h2 .num {
+    flex: none; width: 34px; height: 34px; border-radius: 10px; background: var(--brand); color: #fff;
+    display: grid; place-items: center; font-size: 16px; font-weight: 700;
+  }
+  section.card .lead { color: var(--muted); margin: 0 0 18px; }
+  h3 { font-size: 16px; margin: 22px 0 10px; }
+
+  /* KPI grid */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin: 4px 0 8px; }
+  .kpi { background: #f8fafc; border: 1px solid var(--line); border-radius: 12px; padding: 16px; text-align: center; }
+  .kpi .v { font-size: 28px; font-weight: 800; color: var(--brand); }
+  .kpi .l { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+  /* Pill / tags */
+  .pill { display:inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .pill.g { background: var(--green-soft); color: var(--green); }
+  .pill.b { background: var(--brand-soft); color: var(--brand); }
+  .pill.a { background: var(--amber-soft); color: var(--amber); }
+  .pill.r { background: var(--red-soft); color: var(--red); }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  th { background: #f8fafc; color: var(--muted); font-weight: 600; }
+  td.r, th.r { text-align: right; }
+
+  pre {
+    background: #0f172a; color: #e2e8f0; padding: 16px 18px; border-radius: 12px; overflow-x: auto;
+    font-size: 13px; line-height: 1.65; margin: 12px 0;
+  }
+  pre .c { color: #64748b; }
+  pre .k { color: #93c5fd; }
+  pre .s { color: #86efac; }
+
+  ul.clean { margin: 8px 0; padding-left: 20px; }
+  ul.clean li { margin: 6px 0; }
+
+  .layer { display: grid; gap: 10px; margin: 10px 0; }
+  .layer .row {
+    display: flex; align-items: flex-start; gap: 14px; padding: 14px 16px; border-radius: 12px;
+    background: #f8fafc; border: 1px solid var(--line); border-left: 4px solid var(--brand);
+  }
+  .layer .row .n { flex:none; font-weight: 800; color: var(--brand); width: 64px; }
+  .layer .row .d { color: var(--muted); font-size: 14px; }
+  .layer .row .d b { color: var(--ink); }
+
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .box { background: #f8fafc; border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .box.good { border-left: 4px solid var(--green); }
+  .box.warn { border-left: 4px solid var(--amber); }
+  .box h4 { margin: 0 0 8px; font-size: 15px; }
+
+  .callout {
+    background: linear-gradient(135deg, #eff6ff, #f0fdf4);
+    border: 1px solid #bfdbfe; border-radius: 12px; padding: 18px 22px; margin: 14px 0;
+    font-size: 15px;
+  }
+  .callout b { color: var(--brand); }
+
+  footer { text-align: center; color: var(--muted); font-size: 13px; padding: 10px 20px 50px; }
+
+  @media (max-width: 680px) {
+    .two { grid-template-columns: 1fr; }
+  }
+  @media print {
+    body { background: #fff; }
+    .nav { display: none; }
+    section.card { box-shadow: none; break-inside: avoid; }
+    .hero { padding: 40px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <span class="eyebrow">内部项目总结</span>
+  <h1>Pick-Verify 测试</h1>
+  <p>机器人夹爪抓取结果的本地测试台账：人工标注 · 模型推理 · 准召率追溯 · 版本对比，全部串起来、可下钻到每一张图。</p>
+  <div class="meta">
+    <span class="badge">Node.js 单服务</span>
+    <span class="badge">端口 5034 · 局域网共享</span>
+    <span class="badge">纯文件存储 · 无数据库</span>
+    <span class="badge">约 2659 组样本</span>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <nav class="nav">
+    <a href="#what">是什么</a>
+    <a href="#run">怎么用</a>
+    <a href="#sample">样本结构</a>
+    <a href="#scale">数据规模</a>
+    <a href="#pages">核心页面</a>
+    <a href="#ledger">四层台账</a>
+    <a href="#labels">标签体系</a>
+    <a href="#bmflow">BM 快照</a>
+    <a href="#metric">评测指标</a>
+    <a href="#model">模型评测</a>
+    <a href="#compare">版本对比</a>
+    <a href="#safety">工程亮点</a>
+    <a href="#pitch">一句话总结</a>
+  </nav>
+
+  <!-- 1 -->
+  <section class="card" id="what">
+    <h2><span class="num">1</span>这个项目是做什么的</h2>
+    <p class="lead">核心要解决一个问题：给一张「机器人夹爪 + 物体」的照片，判断到底有没有夹住，并持续衡量视觉模型（VLM）判断得准不准。</p>
+    <p>它不只是跑一个模型看准确率，而是搭了一套 <b>可追溯的模型测试台账</b>：测试集、人工标注、模型预测、具体图片、准召率指标全部串起来，支持回归测试、版本对比和历史追溯。</p>
+    <div style="margin-top:14px">
+      <span class="pill g">G = 夹住 (Grasped)</span>&nbsp;&nbsp;
+      <span class="pill r">N = 没夹住 (Not Grasped)</span>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section class="card" id="run">
+    <h2><span class="num">2</span>怎么跑起来 / 给同事用</h2>
+    <ul class="clean">
+      <li>双击 <code>start_lan_5034.bat</code> 即可启动，固定端口 <b>5034</b>。</li>
+      <li>启动脚本自动：杀掉占用端口的旧进程 → 探测本机局域网 IP → 打开浏览器。</li>
+      <li>本机访问 <code>http://127.0.0.1:5034/</code>，同事访问 <code>http://&lt;本机局域网IP&gt;:5034/</code>（需放行 Windows 防火墙入站 TCP 5034）。</li>
+      <li>后端入口 <code>platform/gripper_eval_server.js</code>，约 3600 行，原生 <code>http</code> 模块手写路由，零外部依赖。</li>
+      <li>根路径 <code>/</code> 自动重定向到样本池 <code>/pool</code>；旧的 <code>gripper_eval.html</code> 一体化工作台已退役，职责拆分到下面几个页面。</li>
+    </ul>
+  </section>
+
+  <!-- 3 -->
+  <section class="card" id="sample">
+    <h2><span class="num">3</span>一条样本是什么</h2>
+    <div class="callout" style="text-align:center;font-size:18px;font-weight:700">
+      cam0（参考图） &nbsp;+&nbsp; cam1（评估图） &nbsp;=&nbsp; 一个样本（capture group）
+    </div>
+    <div class="two">
+      <div class="box good">
+        <h4>cam1 — 评估图</h4>
+        <span style="color:var(--muted);font-size:14px">参与人工标注、VLM 推理和统计，是判断对错的主角。</span>
+      </div>
+      <div class="box warn">
+        <h4>cam0 — 参考图</h4>
+        <span style="color:var(--muted);font-size:14px">只辅助人看，不进统计，避免误参与评估。</span>
+      </div>
+    </div>
+    <p style="margin-top:14px">同一组 cam0/cam1 用 <b>共享身份</b> 绑定：<code>capture_group_id</code>，文件名同时间戳 + 同后缀：</p>
+<pre><span class="s">cam0_20260611113026_di48cb.jpg</span>
+<span class="s">cam1_20260611113026_di48cb.jpg</span>
+<span class="c"># 配对优先级：capture_group_id → 文件名 timestamp+后缀 兜底 → 旧格式同秒兼容</span></pre>
+  </section>
+
+  <!-- 4 -->
+  <section class="card" id="scale">
+    <h2><span class="num">4</span>目前的数据规模</h2>
+    <div class="kpis">
+      <div class="kpi"><div class="v">2659</div><div class="l">样本组</div></div>
+      <div class="kpi"><div class="v">6</div><div class="l">物体类别</div></div>
+      <div class="kpi"><div class="v">~2500</div><div class="l">人工标注</div></div>
+      <div class="kpi"><div class="v">~1400</div><div class="l">VLM 结果</div></div>
+    </div>
+    <table>
+      <thead><tr><th>物体类别</th><th class="r">样本数</th><th>物体类别</th><th class="r">样本数</th></tr></thead>
+      <tbody>
+        <tr><td>Container 容器</td><td class="r">836</td><td>PhoneCover 手机壳</td><td class="r">799</td></tr>
+        <tr><td>BuildingBlocks 积木</td><td class="r">549</td><td>SlenderItems 细长物</td><td class="r">211</td></tr>
+        <tr><td>PlushToy 毛绒玩具</td><td class="r">181</td><td>Ruler 尺子</td><td class="r">83</td></tr>
+      </tbody>
+    </table>
+    <p style="color:var(--muted);font-size:14px;margin:6px 0 0">数据来自多个采集批次，每批都有 <code>manifest</code> 和异常报告，完整保留来源信息。</p>
+  </section>
+
+  <!-- 5 -->
+  <section class="card" id="pages">
+    <h2><span class="num">5</span>平台的核心页面</h2>
+    <table>
+      <thead><tr><th>页面</th><th>路径</th><th>作用</th></tr></thead>
+      <tbody>
+        <tr><td>样本池</td><td><code>/pool</code>（<code>/</code> 默认跳转）</td><td>全部样本的总入口：采集入库、按类别筛选、坏组清理、字典默认值</td></tr>
+        <tr><td>标注页</td><td><code>/label</code></td><td>单图结构化标注 + 给人工结论 + 跑 VLM 看分类结果（原工作台核心能力都在这里）</td></tr>
+        <tr><td>BM 快照</td><td><code>/bm</code></td><td>从已标注样本中<b>冻结</b>一个固定测试集版本</td></tr>
+        <tr><td>评测运行</td><td><code>/runs</code></td><td>查看历史模型 run 列表和单次评测详情</td></tr>
+        <tr><td>实时采集</td><td><code>/realtime</code></td><td>代理实时相机页面，cam0/cam1 同组采集落盘后进入样本池</td></tr>
+      </tbody>
+    </table>
+    <p style="color:var(--muted);font-size:14px;margin:6px 0 0">页面按职责拆分（采集 → 标注 → 冻结 BM → 跑评测 → 看运行），每个环节单独一页，互不干扰。</p>
+  </section>
+
+  <!-- 6 -->
+  <section class="card" id="ledger">
+    <h2><span class="num">6</span>最关键的设计：四层台账</h2>
+    <p class="lead">这是整个项目的灵魂。</p>
+    <div class="layer">
+      <div class="row"><div class="n">样本层</div><div class="d"><b>图片 + 人工标准答案 + 属性标签</b>。一条 = 一组 cam0/cam1。</div></div>
+      <div class="row"><div class="n">BM 层</div><div class="d"><b>某个测试集版本固定包含哪些样本（冻结）</b>，作为回归/对比基准。</div></div>
+      <div class="row"><div class="n">运行层</div><div class="d"><b>某个模型在某个 BM 上跑了一次 = 一个 run</b>，记录模型、prompt、时间。</div></div>
+      <div class="row"><div class="n">预测层</div><div class="d"><b>这次 run 里每张样本预测成什么、对不对、原始输出是什么</b>。</div></div>
+    </div>
+    <div class="callout">
+      <b>核心铁律：模型结果只追加，不覆盖样本表。</b><br>
+      样本表 = 标准答案（人工标注 + 属性）；模型结果表 = 历史答题记录（每次 run 独立存）。<br>
+      这样历史结果永远不会丢，可随时回看「base / opt10 / opt11 各自当时预测成什么」。
+    </div>
+  </section>
+
+  <!-- 7 标签体系 -->
+  <section class="card" id="labels">
+    <h2><span class="num">7</span>标签体系详解（样本层的核心）</h2>
+    <p class="lead">所有标签由单一数据源 <code>platform/annotation_schema.js</code> 定义：改一处，后端存储白名单、标注表单、BM 筛选三处同时生效。标签分 6 组。</p>
+
+    <h3>结论（必填）</h3>
+    <table>
+      <thead><tr><th>字段</th><th>选项</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><code>human_result</code> 人工结果 <span class="pill r">必填</span></td><td>夹住 / 未夹住</td><td>唯一必填项，对应 G / N，是评测的标准答案</td></tr>
+      </tbody>
+    </table>
+
+    <h3>夹取关系（每张都看）</h3>
+    <table>
+      <thead><tr><th>字段</th><th>选项</th></tr></thead>
+      <tbody>
+        <tr><td>夹爪状态</td><td>张开 / 闭合 / 半闭合 / 不清楚</td></tr>
+        <tr><td>夹爪张开大小</td><td>张开大 / 张开小</td></tr>
+        <tr><td>夹爪-物体关系</td><td>错位空抓 / 对准未接触 / 部分包围 / 充分包围 / 看不清</td></tr>
+        <tr><td>夹爪-桌面关系</td><td>离桌 / 近桌未接触 / 接触桌面 / 抵住桌面 / 隔物支撑 / 看不清</td></tr>
+        <tr><td>夹取深度 / 角度</td><td>浅·中·深·未进入 ／ 正夹·侧夹·斜夹</td></tr>
+        <tr><td>遮挡程度</td><td>无遮挡 / 部分遮挡 / 严重遮挡</td></tr>
+      </tbody>
+    </table>
+    <p style="color:var(--muted);font-size:14px;margin:4px 0 0">这组是模型出错归因的关键维度——可以分析「对准未接触」「抵住桌面」这类难例上模型的表现。</p>
+
+    <h3>物体属性（字典默认 · 一般不用改）</h3>
+    <p>物品名称、透明度、反光程度、形变属性、几何结构、材质。这些是 <b>物体级属性</b>（<code>dict:true</code>），由 <code>object_dictionary.json</code> 按类别自动带默认值，省去重复标注。例如打开一张 PhoneCover：</p>
+<pre><span class="c">// object_dictionary.json 自动带入</span>
+PhoneCover → 手机壳 · 不透明 · 中等反光 · 可形变 · [薄片] · [塑料]</pre>
+    <p style="color:var(--muted);font-size:14px;margin:4px 0 0">个别不符的样本可在页面直接改写后保存，不影响字典。</p>
+
+    <h3>场景（可选）与 复核</h3>
+    <ul class="clean">
+      <li><b>背景复杂度</b>：干净 / 复杂 / 低对比 / 反光背景 / 杂乱。</li>
+      <li><b>物品颜色</b>（多选）：黑色/深色、与桌面颜色相近、与夹爪颜色相近…… 用于分析「同色边界」对分割的影响。</li>
+      <li><b>复核状态</b> <code>bm_review_status</code>：pending / approved / rejected —— 这一项决定能否进入「仅复核通过」的 BM。</li>
+      <li><b>备注</b>：自由文本。</li>
+    </ul>
+
+    <div class="callout">
+      <b>字段三种类型：</b>
+      <span class="pill b">select 单选</span>
+      <span class="pill b">multi 多选标签</span>
+      <span class="pill b">text 自由文本</span>。
+      想加新标签，最常见就是复制一行 select，改 <code>key / label / options</code> 放进合适分组即可，三处自动生效。
+    </div>
+  </section>
+
+  <!-- 8 BM 快照 -->
+  <section class="card" id="bmflow">
+    <h2><span class="num">8</span>如何确认 / 冻结一个 BM 快照</h2>
+    <p class="lead">BM（Benchmark）= 一份固定的测试集版本。在 <code>/bm</code> 页面操作，产物写到 <code>eval_registry/bm/&lt;bm_id&gt;/</code>，全程<b>只读样本池和标注，绝不动原图</b>。</p>
+
+    <h3>第 1 步：看标注进度</h3>
+    <p>页面顶部按类别显示「总数 / 已标注 / G / N / 复核通过」。只有 <code>human_result</code> 已填的样本才算「已标注」，才有资格进 BM。</p>
+
+    <h3>第 2 步：选一种冻结方式</h3>
+    <div class="two">
+      <div class="box good">
+        <h4>方式 A · 自动配额抽样</h4>
+        <ul class="clean" style="font-size:14px">
+          <li><b>每类数量</b>：如填 50 = 每个类别抽 50（留空 = 全部已标注）</li>
+          <li><b>G/N 尽量均衡</b>：每类内夹住/没夹住对半抽</li>
+          <li><b>仅纳入复核通过</b>：只要 approved 的样本</li>
+          <li><b>随机种子 seed</b>：同 seed 抽样结果完全一致 → <b>可复现</b></li>
+        </ul>
+      </div>
+      <div class="box warn">
+        <h4>方式 B · 手动挑选</h4>
+        <span style="color:var(--muted);font-size:14px">从「大水池」用筛选条件逐个勾选样本，按挑选顺序冻结、自动去重。适合精确控制测试集内容、构造特定难例集。</span>
+      </div>
+    </div>
+
+    <h3>第 3 步：冻结（每条样本连同当时的标注一起写死）</h3>
+<pre><span class="c">eval_registry/bm/&lt;bm_id&gt;/</span>
+  snapshot.jsonl   <span class="c"># 每行一条样本：sample_id、cam0/cam1 路径、cam1_sha1、</span>
+                   <span class="c">#   当时的全部标注、annotation_operator、frozen_at（冻结时刻）</span>
+  meta.json        <span class="c"># bm_id、criteria（抽样条件+seed）、total、G/N 计数、按类别计数</span></pre>
+    <div class="callout">
+      <b>「确认」的本质 = 冻结。</b> 快照把每条样本的标注<b>复制一份固化下来</b>。之后即使原样本标注被修改，这个 BM 里的标准答案也不变 —— 保证历史评测口径稳定、可对比。
+    </div>
+
+    <h3>第 4 步：锁定（防误删基准）</h3>
+    <table>
+      <thead><tr><th>操作</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><span class="pill b">添加样本</span></td><td>向未锁定的快照追加样本（按 sample_id 去重，已锁定拒绝）</td></tr>
+        <tr><td><span class="pill a">🔒 锁定 / 解锁</span></td><td>锁定后禁止删除和追加，作为正式基准保护起来</td></tr>
+        <tr><td><span class="pill r">删除</span></td><td>整目录移除（已锁定会被后端拒绝，需先解锁）</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <b>配套规则：</b> BM 冻结后样本 ID / 图片 / 人工标签都不变；若要修正标签，建议生成新版本（如 <code>BM_v1.1</code>），而不是改动旧 BM。这样每次模型评测（run）都跑在一个确定、可复现、被锁定保护的基准上。
+    </div>
+  </section>
+
+  <!-- 9 -->
+  <section class="card" id="metric">
+    <h2><span class="num">9</span>评测指标怎么算（口径统一）</h2>
+    <p class="lead">按「夹住 / 没夹住」二分类算混淆矩阵：</p>
+    <table>
+      <thead><tr><th></th><th>预测：夹住</th><th>预测：没夹住</th></tr></thead>
+      <tbody>
+        <tr><th>真实：夹住</th><td><span class="pill g">TP 正确</span></td><td><span class="pill r">FN 漏判</span></td></tr>
+        <tr><th>真实：没夹住</th><td><span class="pill r">FP 误判</span></td><td><span class="pill g">TN 正确</span></td></tr>
+      </tbody>
+    </table>
+    <pre><span class="k">总准确率</span>   = (TP+TN) / 全部已计分样本
+<span class="k">夹住精准率</span> = TP / (TP+FP)
+<span class="k">夹住召回率</span> = TP / (TP+FN)
+<span class="k">没夹住精准率</span> = TN / (TN+FN)
+<span class="k">没夹住召回率</span> = TN / (TN+FP)</pre>
+    <p>每个指标都能 <b>下钻到具体样本和图片</b>，不是孤立数字。错误还分方向：<span class="pill a">G_to_N 漏判抓住</span> <span class="pill a">N_to_G 误判抓住</span>。</p>
+    <div class="callout">
+      <b>已有真实 run 示例：</b> 模型 <code>pick_verifier_1200_merged</code> 在 <code>BM-v1</code>（16 样本）上 ——
+      准确率 <b>93.75%</b>、夹住精准率 <b>1.00</b>、夹住召回率 <b>0.90</b>、没夹住召回率 <b>1.00</b>。
+    </div>
+  </section>
+
+  <!-- 10 -->
+  <section class="card" id="model">
+    <h2><span class="num">10</span>模型评测怎么跑</h2>
+    <ul class="clean">
+      <li>模型注册在 <code>eval_registry/models.json</code>，新增版本只加一项即可。</li>
+      <li>当前线上模型 <code>pick_verifier_1200_merged</code>，走 VLM HTTP 接口，输出协议二分类 <code>G / N</code>。</li>
+      <li>一次 run 把每条样本预测落到 <code>eval_registry/runs/&lt;run_id&gt;/</code>（<code>meta.json</code> + <code>predictions.jsonl</code>），并自动算准召率。</li>
+      <li><b>关键约束：</b>跑 run 只读 BM 快照和图片，绝不动原图和平台标注记录。</li>
+    </ul>
+  </section>
+
+  <!-- 11 -->
+  <section class="card" id="compare">
+    <h2><span class="num">11</span>版本对比（模型迭代价值所在）</h2>
+    <p class="lead">对比两个 run（如 base vs opt10），系统把样本分成四类：</p>
+    <table>
+      <thead><tr><th>类型</th><th>含义</th><th>用途</th></tr></thead>
+      <tbody>
+        <tr><td><span class="pill g">improved</span></td><td>旧错 → 新对</td><td>提升样本</td></tr>
+        <tr><td><span class="pill r">regressed</span></td><td>旧对 → 新错</td><td><b>退化样本（重点关注）</b></td></tr>
+        <tr><td><span class="pill a">still_wrong</span></td><td>都错</td><td>持续难题</td></tr>
+        <tr><td><span class="pill b">still_correct</span></td><td>都对</td><td>稳定样本</td></tr>
+      </tbody>
+    </table>
+    <div class="callout">
+      准确率从 78% → 86% 只能说整体变好，看不出「是不是只在 PhoneCover 上涨、却牺牲了 SlenderItems」。<b>版本对比就是为了回答这个。</b>
+    </div>
+  </section>
+
+  <!-- 12 -->
+  <section class="card" id="safety">
+    <h2><span class="num">12</span>工程亮点 / 安全约束</h2>
+    <div class="two">
+      <div class="box good"><h4>数据安全优先</h4><span style="color:var(--muted);font-size:14px">批量去重/合并/清理先生成副本目录和报告，保留源数据；删除前先确认。</span></div>
+      <div class="box good"><h4>可复现抽样</h4><span style="color:var(--muted);font-size:14px">BM 快照用带 seed 的伪随机，同 seed 抽样结果一致。</span></div>
+      <div class="box good"><h4>标注字段单一数据源</h4><span style="color:var(--muted);font-size:14px"><code>annotation_schema.js</code> 一处定义，后端白名单/表单/筛选三处同时生效。</span></div>
+      <div class="box good"><h4>向后兼容</h4><span style="color:var(--muted);font-size:14px">新旧文件名都能解析，组对优先 capture_group_id，再用时间戳+后缀兜底。</span></div>
+      <div class="box good"><h4>零数据库依赖</h4><span style="color:var(--muted);font-size:14px">纯 JSON/JSONL 文件存储，便于换电脑、归档、复核。</span></div>
+      <div class="box good"><h4>局域网协作</h4><span style="color:var(--muted);font-size:14px">一键启动，多人同时标注审核，支持标注冲突处理。</span></div>
+    </div>
+  </section>
+
+  <!-- 13 -->
+  <section class="card" id="pitch">
+    <h2><span class="num">13</span>可以这样对同事一句话总结</h2>
+    <div class="callout" style="font-size:16px;line-height:1.9">
+      我们做的不是「一个测试集」，而是一套 <b>可追溯的夹爪抓取测试台账</b>：每个 BM 版本固定一批样本和人工标签；每次模型评测生成一个 run，保存每张图的预测、原始输出和对错；准确率召回率都能下钻到具体图片，还能对比不同模型版本哪些变好、哪些退化。整套系统本地一键启动、局域网共享、纯文件存储，数据安全可迁移。
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  Pick-Verify 项目总结报告 · 用于内部演示 · 更新于 2026-06-22（已同步页面路由拆分：/ → /pool，标注与跑模型并入 /label）
+</footer>
+
+</body>
+</html>

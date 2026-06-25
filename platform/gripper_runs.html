@@ -1,0 +1,847 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>模型评测 Run</title>
+  <style>
+    :root {
+      --bg: #f4f6fb; --card: #ffffff; --text: #1e293b; --muted: #64748b;
+      --line: #e4e8f0; --line-soft: #eef2f7; --green: #00a651; --green-dark: #087f45; --blue: #2563eb; --blue-dark: #1d4ed8;
+      --orange: #f97316; --red: #dc2626; --shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.06);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text);
+      font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif; line-height: 1.45; }
+    .page { width: min(1200px, calc(100% - 24px)); margin: 0 auto; padding: 14px 0 40px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+    .topbar h1 { font-size: 19px; margin: 0; letter-spacing: -0.02em; }
+    .nav { display: flex; align-items: center; gap: 3px; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 3px; box-shadow: var(--shadow); }
+    .nav a { color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 600; padding: 5px 11px; border-radius: 7px; transition: background .12s, color .12s; }
+    .nav a:hover { background: var(--line-soft); color: var(--text); text-decoration: none; }
+    .nav a.active { background: var(--green); color: #fff; }
+    .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); margin-top: 14px; }
+    .panel .hd { padding: 10px 14px; border-bottom: 1px solid var(--line); font-weight: 800; font-size: 14px; }
+    .panel .bd { padding: 12px 14px; }
+    label.fl { display: block; font-size: 12px; color: var(--muted); margin: 6px 0 3px; }
+    select, input[type=text] { width: 100%; font-family: inherit; font-size: 13px; padding: 6px 9px; border-radius: 8px; border: 1px solid var(--line); background: white; transition: border-color .12s, box-shadow .12s; }
+    select:focus, input[type=text]:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
+    button { font-family: inherit; font-size: 13px; cursor: pointer; border-radius: 8px; border: 1px solid var(--line); padding: 7px 14px; background: white; color: var(--text); }
+    button:hover { border-color: #cbd5e1; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    button.primary { background: var(--green); border-color: var(--green); color: white; font-weight: 700; }
+    button.primary:hover { background: var(--green-dark); border-color: var(--green-dark); }
+    button.danger { color: var(--red); border-color: #fecaca; background: #fff1f2; }
+    button.danger:hover { border-color: #fca5a5; background: #ffe4e6; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 6px 14px; align-items: end; }
+    .saverow { display: flex; gap: 10px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+    .msg { font-size: 13px; } .msg.ok { color: var(--green-dark); } .msg.err { color: var(--red); }
+    .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--line); }
+    th { background: #ecfdf3; color: #064e3b; font-weight: 800; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tbody tr:hover td { background: #f8fafc; }
+    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 6px 0 12px; }
+    .stat { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+    .stat .num { font-size: 22px; font-weight: 800; }
+    .stat .lab { font-size: 12px; color: var(--muted); }
+    .run { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+    .run h3 { margin: 0 0 4px; font-size: 14px; }
+    .run .meta { font-size: 12px; color: var(--muted); }
+    .run .acts { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .bar { height: 8px; background: #eef2f7; border-radius: 6px; overflow: hidden; margin-top: 6px; }
+    .bar > i { display: block; height: 100%; background: var(--green); width: 0; }
+    .cmatrix { display: grid; gap: 6px; margin: 8px 0 4px; max-width: 560px; align-items: stretch; }
+    .cm-corner { }
+    .cm-head { display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px; color: #334155; }
+    .cm-rowlab { display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; font-weight: 800; font-size: 12px; color: #334155; }
+    .cm-cell { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 72px; border-radius: 10px; border: 1px solid var(--line); cursor: pointer; padding: 6px; transition: transform .05s, box-shadow .1s; }
+    .cm-cell:hover { box-shadow: 0 4px 12px rgba(15,23,42,.12); }
+    .cm-cell.active { outline: 2px solid #0f172a; outline-offset: 1px; }
+    .cm-cell.ok { background: linear-gradient(180deg, #eff6ff 0%, #f7fbff 100%); border-color: #dbeafe; }
+    .cm-cell.bad { background: linear-gradient(180deg, #fff1f2 0%, #fff7f7 100%); border-color: #fecaca; }
+    .cm-cell.warn { background: linear-gradient(180deg, #fffbeb 0%, #fffdf5 100%); border-color: #fde68a; }
+    .cm-cell.zero { background: #f8fafc; border-color: var(--line); }
+    .cm-cell.zero .cm-num { color: #94a3b8; }
+    .cm-cell.zero .cm-lab { color: #94a3b8; }
+    .cm-num { font-size: 26px; font-weight: 900; line-height: 1; }
+    .cm-cell.ok .cm-num { color: #2563eb; }
+    .cm-cell.bad .cm-num { color: var(--red); }
+    .cm-cell.warn .cm-num { color: #b45309; }
+    .cm-lab { margin-top: 5px; font-size: 11px; color: #475569; font-weight: 700; }
+    .cm-side { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 72px; border-radius: 10px; background: #f8fafc; border: 1px solid var(--line); font-size: 18px; font-weight: 800; color: #0f172a; padding: 6px 4px; }
+    .cm-side small { font-size: 10px; font-weight: 600; color: var(--muted); margin-top: 3px; }
+    .cm-side.empty-side { color: #cbd5e1; cursor: help; }
+    .cm-side-head { background: transparent; border: none; color: #334155; font-weight: 800; font-size: 12px; min-height: 0; }
+    .cm-acc { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 72px; border-radius: 10px; background: linear-gradient(180deg, #ecfdf3 0%, #f7fef9 100%); border: 1px solid #bbf7d0; font-size: 20px; font-weight: 900; color: var(--green-dark); padding: 6px 4px; }
+    .cm-acc small { font-size: 10px; font-weight: 600; color: #15803d; margin-top: 3px; }
+    .cm-axis { font-size: 11px; color: var(--muted); margin: 2px 0 0; }
+    .cmatrix.static .cm-cell { cursor: default; }
+    .cmatrix.static .cm-cell:hover { box-shadow: none; }
+    .cmp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+    .cmp-col h4 { margin: 0 0 6px; font-size: 13px; }
+    .cmp-col .sub { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+    .cmp-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 10px 0; }
+    .cmp-table th, .cmp-table td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: right; }
+    .cmp-table th:first-child, .cmp-table td:first-child { text-align: left; }
+    .cmp-table th { background: #f1f5f9; color: #0f172a; font-weight: 800; }
+    .delta-up { color: var(--green-dark); font-weight: 800; }
+    .delta-down { color: var(--red); font-weight: 800; }
+    .delta-zero { color: var(--muted); }
+    .flip-chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
+    .flip-chip { border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; font-size: 13px; cursor: pointer; background: white; font-weight: 700; }
+    .flip-chip:hover { border-color: #cbd5e1; }
+    .flip-chip.active { outline: 2px solid #0f172a; outline-offset: 1px; }
+    .flip-chip .n { font-weight: 900; margin-left: 4px; }
+    .flip-chip.improve { background: #ecfdf3; border-color: #bbf7d0; color: var(--green-dark); }
+    .flip-chip.regress { background: #fff1f2; border-color: #fecaca; color: var(--red); }
+    .flip-chip .gt-sub { display: block; font-size: 11px; font-weight: 600; opacity: .85; margin-top: 2px; }
+    .gt-split-table { max-width: 420px; margin: 8px 0 4px; }
+    .gt-split-table td.num { text-align: right; }
+    .gt-filter-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 8px; }
+    .gt-filter { font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); background: #fff; cursor: pointer; font-weight: 700; color: var(--text); }
+    .gt-filter:hover:not(:disabled) { border-color: #cbd5e1; }
+    .gt-filter.active { outline: 2px solid #0f172a; outline-offset: 1px; }
+    .gt-filter:disabled { opacity: .45; cursor: not-allowed; }
+    .thumb.imp { border-color: var(--green); }
+    .thumb.reg { border-color: var(--red); }
+    @media (max-width: 760px) { .cmp-grid { grid-template-columns: 1fr; } }
+    .cm-legend { font-size: 11px; color: #475569; margin: 8px 0 0; padding: 6px 9px; background: #f8fafc; border: 1px solid var(--line); border-radius: 8px; line-height: 1.6; }
+    .cm-note { font-size: 12px; color: #b45309; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 5px 9px; margin-top: 6px; }
+    .det-toolbar { display: flex; gap: 10px; align-items: center; margin: 8px 0; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; max-height: 460px; overflow-y: auto; padding: 4px; }
+    .thumb { position: relative; border-radius: 8px; overflow: hidden; background: #0f172a; aspect-ratio: 1/1; border: 2px solid transparent; }
+    .thumb.wrong { border-color: var(--red); }
+    .thumb.right { border-color: var(--green); }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: zoom-in; }
+    .det-toolbar select { width: auto; padding: 2px 6px; font-size: 12px; }
+    .det-toolbar .tb-spacer { flex: 1; }
+    .det-toolbar button { font-size: 12px; padding: 2px 8px; }
+    .lightbox { position: fixed; inset: 0; background: rgba(15,23,42,.86); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
+    .lightbox.open { display: flex; }
+    .lightbox img { max-width: 96vw; max-height: 90vh; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+    .lightbox .lb-cap { position: fixed; bottom: 14px; left: 0; right: 0; text-align: center; color: #e2e8f0; font-size: 13px; }
+    .thumb .cap { position: absolute; bottom: 0; left: 0; right: 0; font-size: 10px; background: rgba(15,23,42,.74); color: #fff; padding: 1px 5px; display: flex; justify-content: space-between; gap: 4px; }
+    .empty { color: var(--muted); padding: 16px; text-align: center; }
+    .run-history { margin: 2px 0 10px; }
+    .hist-toggle { font-size: 12px; color: var(--muted); border: 1px dashed var(--line); background: #fafbfc; }
+    .hist-body { margin-top: 8px; padding-left: 10px; border-left: 2px solid var(--line); }
+    .hist-body .run { background: #fbfcfe; }
+    .run .badge-hist { display: inline-block; font-size: 11px; font-weight: 700; color: #64748b; background: #eef2f7; border-radius: 6px; padding: 1px 7px; margin-left: 8px; vertical-align: 2px; }
+    .dup-note { font-size: 12px; color: var(--muted); margin: 2px 0 10px; }
+  </style>
+</head>
+<body>
+  <div class="lightbox" id="lightbox"><img id="lbImg" src="" alt=""><div class="lb-cap" id="lbCap"></div></div>
+  <div class="page">
+    <div class="topbar">
+      <h1>模型评测 Run</h1>
+      <nav class="nav">
+        <a href="/pool">样本池</a>
+        <a href="/label">标注</a>
+        <a href="/bm">BM快照</a>
+        <a href="/runs" class="active">模型评测</a>
+      </nav>
+    </div>
+
+    <!-- 新建 run -->
+    <div class="panel">
+      <div class="hd">跑一次模型评测</div>
+      <div class="bd">
+        <div class="form-grid">
+          <div>
+            <label class="fl">BM 快照</label>
+            <select id="bmSel"></select>
+          </div>
+          <div>
+            <label class="fl">模型版本</label>
+            <select id="modelSel"></select>
+          </div>
+        </div>
+        <div id="customEpMount"></div>
+        <div class="hint">平台会直接调该模型的 VLM 接口，对快照里每张 cam1 评估图预测 G/N，落库后算夹住/没夹住准召率。</div>
+        <div class="saverow">
+          <button class="primary" id="startBtn">开始运行</button>
+          <span class="msg" id="startMsg"></span>
+        </div>
+        <div id="progress" hidden>
+          <div class="bar"><i id="barFill"></i></div>
+          <div class="hint" id="progressText"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 两版结果对比 -->
+    <div class="panel">
+      <div class="hd">两版结果对比</div>
+      <div class="bd">
+        <div class="form-grid">
+          <div>
+            <label class="fl">版本 A（基线 / 旧版）</label>
+            <select id="cmpA"></select>
+          </div>
+          <div>
+            <label class="fl">版本 B（对比 / 新版）</label>
+            <select id="cmpB"></select>
+          </div>
+        </div>
+        <div class="hint">建议选同一个 BM 快照下的两个 run，才能逐张对齐。Δ 显示的是 B 相对 A 的变化（绿升红降）。</div>
+        <div class="saverow">
+          <button class="primary" id="cmpBtn">对比</button>
+          <span class="msg" id="cmpMsg"></span>
+        </div>
+        <div id="cmpResult"></div>
+      </div>
+    </div>
+
+    <!-- run 列表 -->
+    <div class="panel">
+      <div class="hd">历史 Run</div>
+      <div class="bd" id="runList"><div class="empty">加载中…</div></div>
+    </div>
+  </div>
+
+  <script src="/model_endpoint_ui.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const pct = (v) => (v === null || v === undefined ? '—' : (v * 100).toFixed(1) + '%');
+    let registryModels = [];
+
+    async function loadBms() {
+      const r = await fetch('/api/bm/list');
+      const data = await r.json();
+      const snaps = data.snapshots || [];
+      $('bmSel').innerHTML = snaps.length
+        ? snaps.map((s) => `<option value="${s.bm_id}">${s.bm_id}（${s.total} 张）</option>`).join('')
+        : '<option value="">还没有 BM 快照，请先去 /bm 建</option>';
+    }
+
+    async function loadModels() {
+      const r = await fetch('/api/models');
+      const data = await r.json();
+      registryModels = data.models || [];
+      $('modelSel').innerHTML = registryModels.length
+        ? registryModels.map((m) => `<option value="${m.key}">${m.label || m.key}</option>`).join('')
+        : '<option value="">models.json 里没有模型</option>';
+    }
+
+    function defaultModelEndpoint() {
+      const key = $('modelSel') && $('modelSel').value;
+      const m = registryModels.find((x) => x.key === key);
+      return m && m.endpoint ? ModelEndpointUi.parseEndpointUrl(m.endpoint) : null;
+    }
+
+    function runStartBody(bmId, modelKey) {
+      return Object.assign({ bm_id: bmId, model_key: modelKey }, ModelEndpointUi.getPayload());
+    }
+
+    let pollTimer = null;
+    async function startRun() {
+      const bmId = $('bmSel').value;
+      const modelKey = $('modelSel').value;
+      if (!bmId || !modelKey) { setMsg('请选择 BM 快照和模型', true); return; }
+      $('startBtn').disabled = true;
+      setMsg('启动中…', false);
+      const r = await fetch('/api/run/start', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(runStartBody(bmId, modelKey)),
+      });
+      const data = await r.json();
+      if (!data.ok) { $('startBtn').disabled = false; setMsg(data.message || '启动失败', true); return; }
+      setMsg('运行中…', false);
+      $('progress').hidden = false;
+      pollRun(data.run_id);
+    }
+
+    function pollRun(runId) {
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(async () => {
+        const r = await fetch('/api/run/status?run_id=' + encodeURIComponent(runId));
+        const data = await r.json();
+        if (!data.ok) return;
+        const j = data.job;
+        const p = j.total ? Math.round((j.done || j.total) / j.total * 100) : 0;
+        $('barFill').style.width = p + '%';
+        $('progressText').textContent = `${j.message || ''}（${j.done || j.total}/${j.total}）`;
+        if (j.status === 'completed' || j.status === 'failed') {
+          clearInterval(pollTimer); pollTimer = null;
+          $('startBtn').disabled = false;
+          setMsg(j.status === 'completed' ? '运行完成' : (j.message || '运行失败'), j.status !== 'completed');
+          loadRuns();
+        }
+      }, 1500);
+    }
+
+    // 混淆矩阵：行=实际、列=预测；右侧边列=召回率，底部边行=精准率，右下角=准确率。
+    // 蓝/红/黄格子可点，点了在下方显示对应图片（对齐总览页交互）。
+    function confusionMatrix(m, opts = {}) {
+      const runId = opts.runId || null;
+      const interactive = !!runId;
+      const c = m.confusion;
+      const unkTotal = c.g_unknown + c.n_unknown;
+      const hasUnk = unkTotal > 0;
+      const cols = hasUnk ? 3 : 2;
+      const tips = {
+        tp: '实际夹住，模型也判夹住（判对）',
+        fn: '实际夹住，但模型判成没夹住（漏判：把夹住的漏掉了）',
+        fp: '实际没夹住，但模型判成夹住（误判：把空夹当成夹住）',
+        tn: '实际没夹住，模型也判没夹住（判对）',
+        unk_g: '实际夹住，模型输出无法识别',
+        unk_n: '实际没夹住，模型输出无法识别',
+      };
+      const cell = (label, count, filter, cls) => {
+        const zero = count === 0 ? ' zero' : '';
+        if (interactive) {
+          return `<button class="cm-cell ${cls}${zero}" data-run="${runId}" data-filter="${filter}" data-label="${label}" title="${tips[filter] || ''}　·　点击查看这些图片">
+            <div class="cm-num">${count}</div><div class="cm-lab">${label}</div></button>`;
+        }
+        return `<div class="cm-cell ${cls}${zero}" title="${tips[filter] || ''}"><div class="cm-num">${count}</div><div class="cm-lab">${label}</div></div>`;
+      };
+      const side = (val, sub, tip) =>
+        `<div class="cm-side${val === null ? ' empty-side' : ''}" title="${val === null ? '本快照缺少该类样本，无法计算' : tip}">${pct(val)}<small>${sub}</small></div>`;
+      const MIN_RELIABLE = 30;
+      const notes = [];
+      if (m.evaluated > 0 && m.evaluated < MIN_RELIABLE) notes.push(`样本偏少（仅 ${m.evaluated} 张），指标易受个别样本影响，仅供参考`);
+      if (m.actual_g === 0) notes.push('本快照没有“夹住”样本，夹住精准率/召回率不可用');
+      if (m.actual_n === 0) notes.push('本快照没有“没夹住”样本，没夹住精准率/召回率不可用');
+      const notesHtml = notes.map((t) => `<div class="cm-note">⚠ ${t}</div>`).join('');
+      const legend = `<div class="cm-legend"><b>漏判</b> = 该夹的没夹住（实际夹住 → 模型判没夹住）　·　<b>误判</b> = 不该夹的判成夹住（实际没夹住 → 模型判夹住）</div>`;
+      const axis = interactive ? `<div class="cm-axis">列＝模型预测，行＝人工真值；右列＝召回率，底行＝精准率。把鼠标放到格子上看含义，点蓝/红格子看对应图片。</div>` : '';
+      const tail = interactive
+        ? `<div class="hint">实际 夹住 ${m.actual_g} / 没夹住 ${m.actual_n} · 共评估 ${m.evaluated} 张${m.excluded_no_gt ? ` · 无标签未计入 ${m.excluded_no_gt}` : ''}</div>${legend}${notesHtml}`
+        : '';
+      return `${axis}
+        <div class="cmatrix${interactive ? '' : ' static'}" style="grid-template-columns: 84px repeat(${cols}, minmax(0,1fr)) 92px;">
+          <div class="cm-corner"></div>
+          <div class="cm-head">预测 夹住</div>
+          <div class="cm-head">预测 没夹住</div>
+          ${hasUnk ? '<div class="cm-head">无法识别</div>' : ''}
+          <div class="cm-head cm-side-head">召回率</div>
+
+          <div class="cm-rowlab">实际 夹住</div>
+          ${cell('正确 · 夹住', c.gg, 'tp', 'ok')}
+          ${cell('漏判', c.gn, 'fn', 'bad')}
+          ${hasUnk ? cell('无法识别', c.g_unknown, 'unk_g', 'warn') : ''}
+          ${side(m.grasp_recall, '夹住召回', '所有“实际夹住”里，模型找回了多少')}
+
+          <div class="cm-rowlab">实际 没夹住</div>
+          ${cell('误判', c.ng, 'fp', 'bad')}
+          ${cell('正确 · 没夹住', c.nn, 'tn', 'ok')}
+          ${hasUnk ? cell('无法识别', c.n_unknown, 'unk_n', 'warn') : ''}
+          ${side(m.nograsp_recall, '没夹住召回', '所有“实际没夹住”里，模型找回了多少')}
+
+          <div class="cm-rowlab cm-side-head">精准率</div>
+          ${side(m.grasp_precision, '夹住精准', '模型说“夹住”的里面，有多少真的夹住')}
+          ${side(m.nograsp_precision, '没夹住精准', '模型说“没夹住”的里面，有多少真的没夹住')}
+          ${hasUnk ? '<div class="cm-side cm-side-head">—</div>' : ''}
+          <div class="cm-acc" title="整体判对比例 = 判对张数 / 参与评估张数">${pct(m.accuracy)}<small>准确率 ${m.correct}/${m.evaluated}</small></div>
+        </div>
+        ${tail}`;
+    }
+
+    function renderRunBlock(run, isHistory) {
+      const m = run.metrics && run.metrics.overall;
+      const done = run.status && run.status !== 'completed';
+      return `<div class="run">
+        <h3>${run.model || run.model_key} @ ${run.bm_id}${isHistory ? '<span class="badge-hist">历史</span>' : ''}</h3>
+        <div class="meta">${run.run_id} · ${run.created_at || ''} · ${run.total || 0} 张${run.failed ? ` · 失败 ${run.failed}` : ''}${done ? ` · ${run.status}` : ''}</div>
+        ${m ? confusionMatrix(m, { runId: run.run_id }) : '<div class="hint">指标生成中或运行未完成</div>'}
+        <div class="acts">
+          ${m ? `<button data-run="${run.run_id}" data-filter="err">仅看错误</button>
+          <button data-run="${run.run_id}" data-filter="all">查看全部</button>
+          <button onclick="toggleByCat('${run.run_id}',this)">按类别指标</button>
+          <button onclick="exportRunCsv('${run.run_id}')" title="导出本次快照评测的逐样本明细">导出CSV</button>
+          <button onclick="exportRunJson('${run.run_id}')" title="导出本次 run 的统计与指标">导出统计JSON</button>` : ''}
+          <button class="danger" data-run-del="${run.run_id}" title="删除本次 run 记录（不动原图、标注和 BM 快照）">删除</button>
+        </div>
+        <div id="cat_${cssId(run.run_id)}"></div>
+        <div id="pred_${cssId(run.run_id)}"></div>
+      </div>`;
+    }
+
+    async function deleteRunRecord(runId) {
+      if (!runId) return;
+      if (!confirm(`确认删除这次 run？\n${runId}\n\n只删除 eval_registry/runs 下该次评测记录，不影响原图、标注和 BM 快照。`)) return;
+      try {
+        const r = await fetch('/api/run/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ run_id: runId }),
+        });
+        const d = await r.json();
+        if (!r.ok || !d.ok) throw new Error(d.message || `HTTP ${r.status}`);
+        delete detailCache[runId];
+        await loadRuns();
+      } catch (e) {
+        alert('删除失败：' + (e.message || e));
+      }
+    }
+
+    async function loadRuns() {
+      const r = await fetch('/api/run/list');
+      const data = await r.json();
+      const runs = data.runs || [];
+      if (!runs.length) { $('runList').innerHTML = '<div class="empty">还没有 run</div>'; return; }
+      // 同一个「模型 + 快照」可能跑过多次：默认只展开最新一次，旧的折叠收起，不删历史。
+      const groups = new Map();
+      for (const run of runs) {
+        const key = (run.bm_id || '') + '__' + (run.model_key || run.model || '');
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(run);
+      }
+      const blocks = [];
+      for (const list of groups.values()) {
+        list.sort((a, b) => ((a.created_at || '') < (b.created_at || '') ? 1 : -1));
+        // 同模型 + 同快照下，结果完全一致（混淆矩阵/总数/失败数都相同）视为重复评测，
+        // 只保留每种结果最新的一次，旧的重复项不再单独展示，避免看到两份一样的快照。
+        const seen = new Set();
+        const distinct = [];
+        let dupCount = 0;
+        for (const run of list) {
+          const sig = runResultSig(run);
+          if (seen.has(sig)) { dupCount += 1; continue; }
+          seen.add(sig);
+          distinct.push(run);
+        }
+        const latest = distinct[0];
+        const history = distinct.slice(1);
+        let html = renderRunBlock(latest, false);
+        if (dupCount) {
+          html += `<div class="dup-note">已隐藏 ${dupCount} 次结果与最新完全一致的重复评测（同模型 / 同快照），只看最新即可。</div>`;
+        }
+        if (history.length) {
+          const gid = cssId(latest.run_id);
+          html += `<div class="run-history">
+            <button class="hist-toggle" data-group="${gid}" data-count="${history.length}">展开同模型同快照的历史 ${history.length} 次 ▾</button>
+            <div id="hist_${gid}" class="hist-body" hidden>${history.map((rn) => renderRunBlock(rn, true)).join('')}</div>
+          </div>`;
+        }
+        blocks.push(html);
+      }
+      $('runList').innerHTML = blocks.join('');
+      populateCompareSelects(runs.filter((r) => r.metrics && r.metrics.overall));
+    }
+
+    function cssId(s) { return s.replace(/[^A-Za-z0-9_]/g, '_'); }
+
+    // 结果指纹：同一快照（同评测数据）下，混淆矩阵四格 + 无法识别 + 评估/总数/失败数都一致，
+    // 就认为是同一份评测结果。指纹不同（或还没出指标）的 run 会各自保留，不会被误删。
+    function runResultSig(run) {
+      const m = run.metrics && run.metrics.overall;
+      if (!m) return 'no-metrics::' + run.run_id;
+      const c = m.confusion || {};
+      return [
+        run.bm_id || '',
+        m.total != null ? m.total : (run.total || 0),
+        m.evaluated != null ? m.evaluated : '',
+        c.gg || 0, c.gn || 0, c.ng || 0, c.nn || 0,
+        c.g_unknown || 0, c.n_unknown || 0,
+        run.failed || 0,
+      ].join('|');
+    }
+
+    function populateCompareSelects(runs) {
+      const opt = (r) => `<option value="${r.run_id}">${r.model || r.model_key} @ ${r.bm_id} · ${(r.created_at || '').slice(0, 16).replace('T', ' ')}</option>`;
+      const html = runs.map(opt).join('');
+      const a = $('cmpA'), b = $('cmpB');
+      const prevA = a.value, prevB = b.value;
+      a.innerHTML = html; b.innerHTML = html;
+      if (!runs.length) { a.innerHTML = b.innerHTML = '<option value="">还没有可对比的 run</option>'; return; }
+      // 默认 A=较旧一条、B=最新一条，便于看“新版相对旧版”的变化。
+      a.value = prevA || (runs[1] ? runs[1].run_id : runs[0].run_id);
+      b.value = prevB || runs[0].run_id;
+    }
+
+    // run 详情（meta + 预测明细）按 run 缓存，避免反复请求。
+    const detailCache = {};
+    async function getDetail(runId) {
+      if (detailCache[runId]) return detailCache[runId];
+      const r = await fetch('/api/run/detail?run_id=' + encodeURIComponent(runId));
+      const data = await r.json();
+      detailCache[runId] = data.ok ? data : { meta: null, predictions: [] };
+      return detailCache[runId];
+    }
+    async function getPreds(runId) {
+      return (await getDetail(runId)).predictions || [];
+    }
+
+    // ===== 导出（BM 快照口径）：CSV 逐样本明细 + 统计 JSON =====
+    function downloadTextFile(filename, content, type) {
+      const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+    function csvCell(value) {
+      const s = value === null || value === undefined ? '' : String(value);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+    window.exportRunCsv = async function (runId) {
+      const detail = await getDetail(runId);
+      const preds = detail.predictions || [];
+      const headers = ['sample_id', 'object_category', 'gt_human_result', 'gt_label', 'pred_label', 'correct', 'raw_output', 'error'];
+      const rows = preds.map((p) => headers.map((h) => csvCell(p[h])).join(','));
+      const csv = [headers.join(','), ...rows].join('\n');
+      downloadTextFile(`run-${cssId(runId)}-samples.csv`, '\ufeff' + csv, 'text/csv;charset=utf-8');
+    };
+    window.exportRunJson = async function (runId) {
+      const detail = await getDetail(runId);
+      const payload = { exported_at: new Date().toISOString(), meta: detail.meta || null };
+      downloadTextFile(`run-${cssId(runId)}-stats.json`, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
+    };
+
+    function filterPreds(preds, filter) {
+      switch (filter) {
+        case 'tp': return preds.filter((p) => p.gt_label === 'G' && p.pred_label === 'G');
+        case 'fn': return preds.filter((p) => p.gt_label === 'G' && p.pred_label === 'N');
+        case 'fp': return preds.filter((p) => p.gt_label === 'N' && p.pred_label === 'G');
+        case 'tn': return preds.filter((p) => p.gt_label === 'N' && p.pred_label === 'N');
+        case 'unk_g': return preds.filter((p) => p.gt_label === 'G' && p.pred_label === 'Unknown');
+        case 'unk_n': return preds.filter((p) => p.gt_label === 'N' && p.pred_label === 'Unknown');
+        case 'err': return preds.filter((p) => p.correct === false);
+        default: return preds;
+      }
+    }
+
+    // 每个 run 的图片展示视图状态：当前筛选、每行列数、每页数量、页偏移。
+    const predView = {};
+    const PRED_COLS = ['auto', '2', '3', '4', '6', '8', '10', '12'];
+    const PRED_PAGE = [60, 120, 240, 480, 0]; // 0 = 全部
+
+    async function showCellImages(runId, filter, label) {
+      const box = $('pred_' + cssId(runId));
+      // 再次点同一格子则收起。
+      if (box.dataset.filter === filter) { box.innerHTML = ''; box.dataset.filter = ''; markActive(runId, ''); return; }
+      box.dataset.filter = filter;
+      markActive(runId, filter);
+      const prev = predView[runId] || {};
+      predView[runId] = { filter, label, cols: prev.cols || 'auto', pageSize: prev.pageSize != null ? prev.pageSize : 120, offset: 0 };
+      box.innerHTML = '<div class="det-toolbar">加载中…</div>';
+      await getPreds(runId); // 预取并缓存
+      renderPredView(runId);
+    }
+
+    function renderPredView(runId) {
+      const box = $('pred_' + cssId(runId));
+      const v = predView[runId];
+      if (!box || !v) return;
+      const list = filterPreds(detailCache[runId] ? detailCache[runId].predictions || [] : [], v.filter);
+      const total = list.length;
+      const pageSize = v.pageSize || total || 1;
+      const maxOffset = Math.max(0, Math.floor((total - 1) / pageSize) * pageSize);
+      if (v.offset > maxOffset) v.offset = maxOffset;
+      const shown = v.pageSize ? list.slice(v.offset, v.offset + v.pageSize) : list;
+      const colsCss = v.cols === 'auto'
+        ? 'repeat(auto-fill, minmax(120px, 1fr))' : `repeat(${v.cols}, 1fr)`;
+      const cells = shown.map((p) => {
+        const img = `/api/pool/image?cam=1&sample_id=${encodeURIComponent(p.sample_id)}`;
+        const cls = p.correct === true ? 'right' : p.correct === false ? 'wrong' : '';
+        return `<div class="thumb ${cls}" title="${p.sample_id}\n真值 ${p.gt_label} / 预测 ${p.pred_label}${p.error ? '\n' + p.error : ''}">
+          <img src="${img}" loading="lazy" alt="" data-lb="${escAttr(p.sample_id)}" data-cap="${escAttr(p.sample_id + ' · 真 ' + (p.gt_label || '—') + ' / 预 ' + p.pred_label)}">
+          <div class="cap"><span>真 ${p.gt_label || '—'}</span><span>预 ${p.pred_label}</span></div>
+        </div>`;
+      }).join('');
+      const colOpts = PRED_COLS.map((c) => `<option value="${c}" ${v.cols === c ? 'selected' : ''}>${c === 'auto' ? '自动' : c}</option>`).join('');
+      const pageOpts = PRED_PAGE.map((n) => `<option value="${n}" ${v.pageSize === n ? 'selected' : ''}>${n === 0 ? '全部' : n}</option>`).join('');
+      const from = total ? v.offset + 1 : 0;
+      const to = v.pageSize ? Math.min(v.offset + v.pageSize, total) : total;
+      const pager = v.pageSize
+        ? `<button data-pred-act="prev" data-run="${escAttr(runId)}" ${v.offset <= 0 ? 'disabled' : ''}>上一页</button>
+           <span>${from}-${to} / ${total}</span>
+           <button data-pred-act="next" data-run="${escAttr(runId)}" ${v.offset + v.pageSize >= total ? 'disabled' : ''}>下一页</button>`
+        : `<span>共 ${total} 张</span>`;
+      box.innerHTML = `<div class="det-toolbar">
+          <b>${v.label || v.filter}</b>
+          <label>每行 <select data-pred-set="cols" data-run="${escAttr(runId)}">${colOpts}</select></label>
+          <label>每页 <select data-pred-set="page" data-run="${escAttr(runId)}">${pageOpts}</select></label>
+          <span class="tb-spacer"></span>
+          ${pager}
+        </div>
+        <div class="grid" style="grid-template-columns:${colsCss};">${cells || '<div class="empty">无</div>'}</div>`;
+    }
+
+    function escAttr(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;'); }
+
+    function openLightbox(src, cap) {
+      $('lbImg').src = src;
+      $('lbCap').textContent = cap || '';
+      $('lightbox').classList.add('open');
+    }
+    function closeLightbox() { $('lightbox').classList.remove('open'); $('lbImg').src = ''; }
+
+    function markActive(runId, filter) {
+      document.querySelectorAll(`.cm-cell[data-run="${cssAttr(runId)}"], .acts button[data-run="${cssAttr(runId)}"]`)
+        .forEach((el) => el.classList.toggle('active', el.dataset.filter === filter));
+    }
+    function cssAttr(s) { return s.replace(/"/g, '\\"'); }
+
+    // 事件委托：矩阵格子 + 工具按钮 + 历史折叠统一处理。
+    document.addEventListener('click', (event) => {
+      const hist = event.target.closest('.hist-toggle');
+      if (hist) {
+        const body = $('hist_' + hist.dataset.group);
+        if (body) {
+          const willOpen = body.hidden;
+          body.hidden = !willOpen;
+          const n = hist.dataset.count || '';
+          hist.textContent = willOpen ? `收起历史 ${n} 次 ▴` : `展开同模型同快照的历史 ${n} 次 ▾`;
+        }
+        return;
+      }
+      const delBtn = event.target.closest('button[data-run-del]');
+      if (delBtn) {
+        deleteRunRecord(delBtn.dataset.runDel);
+        return;
+      }
+      const chip = event.target.closest('.flip-chip');
+      if (chip && chip.dataset.bucket) { toggleFlipBucket(chip.dataset.bucket); return; }
+      const gtBtn = event.target.closest('[data-gt-filter]');
+      if (gtBtn && !gtBtn.disabled && cmpFlipView.bucket) {
+        const gt = gtBtn.dataset.gtFilter;
+        if (cmpFlipView.gt === gt) showFlipView(cmpFlipView.bucket, '');
+        else showFlipView(cmpFlipView.bucket, gt);
+        return;
+      }
+      // 点关闭图片大图
+      if (event.target.closest('#lightbox')) { closeLightbox(); return; }
+      // 点缩略图放大
+      const lbImg = event.target.closest('img[data-lb]');
+      if (lbImg) { openLightbox(lbImg.getAttribute('src'), lbImg.getAttribute('data-cap')); return; }
+      // 图片展示分页：上一页/下一页
+      const pact = event.target.closest('button[data-pred-act]');
+      if (pact && pact.dataset.run) {
+        const v = predView[pact.dataset.run];
+        if (v && v.pageSize) {
+          v.offset = pact.dataset.predAct === 'next' ? v.offset + v.pageSize : Math.max(0, v.offset - v.pageSize);
+          renderPredView(pact.dataset.run);
+        }
+        return;
+      }
+      const cell = event.target.closest('.cm-cell, .acts button[data-filter]');
+      if (cell && cell.dataset.run && cell.dataset.filter) {
+        showCellImages(cell.dataset.run, cell.dataset.filter, cell.dataset.label || (cell.dataset.filter === 'err' ? '错误样本' : '全部样本'));
+      }
+    });
+
+    // 图片展示：每行列数 / 每页数量切换。
+    document.addEventListener('change', (event) => {
+      const sel = event.target.closest('select[data-pred-set]');
+      if (!sel || !sel.dataset.run) return;
+      const v = predView[sel.dataset.run];
+      if (!v) return;
+      if (sel.dataset.predSet === 'cols') { v.cols = sel.value; }
+      else if (sel.dataset.predSet === 'page') { v.pageSize = parseInt(sel.value, 10) || 0; v.offset = 0; }
+      renderPredView(sel.dataset.run);
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && $('lightbox').classList.contains('open')) { event.preventDefault(); closeLightbox(); }
+    });
+
+    window.toggleByCat = async function (runId, btn) {
+      const box = $('cat_' + cssId(runId));
+      if (box.dataset.open === '1') { box.innerHTML = ''; box.dataset.open = '0'; btn.textContent = '按类别指标'; return; }
+      btn.textContent = '收起类别';
+      box.dataset.open = '1';
+      const r = await fetch('/api/run/detail?run_id=' + encodeURIComponent(runId));
+      const data = await r.json();
+      if (!data.ok) { box.innerHTML = '<div class="empty">加载失败</div>'; return; }
+      const byCat = data.meta.metrics.by_category || {};
+      const rows = Object.entries(byCat).map(([cat, m]) => `<tr>
+        <td>${cat}</td><td class="num">${m.evaluated}</td><td class="num">${pct(m.accuracy)}</td>
+        <td class="num">${pct(m.grasp_precision)}</td><td class="num">${pct(m.grasp_recall)}</td>
+        <td class="num">${pct(m.nograsp_precision)}</td><td class="num">${pct(m.nograsp_recall)}</td>
+      </tr>`).join('');
+      box.innerHTML = `<table><thead><tr><th>类别</th><th class="num">样本</th><th class="num">准确率</th>
+        <th class="num">夹住精准</th><th class="num">夹住召回</th><th class="num">没夹住精准</th><th class="num">没夹住召回</th></tr></thead>
+        <tbody>${rows}</tbody></table>`;
+    };
+
+    function setMsg(text, isErr) { const el = $('startMsg'); el.textContent = text; el.className = 'msg ' + (isErr ? 'err' : 'ok'); }
+    function setCmpMsg(text, isErr) { const el = $('cmpMsg'); el.textContent = text; el.className = 'msg ' + (isErr ? 'err' : 'ok'); }
+
+    // ===== 两版结果对比 =====
+    let cmpBuckets = {};
+    function deltaCell(a, b) {
+      if (a === null || a === undefined || b === null || b === undefined) return '<td class="delta-zero">—</td>';
+      const d = (b - a) * 100;
+      const cls = d > 0.05 ? 'delta-up' : d < -0.05 ? 'delta-down' : 'delta-zero';
+      const sign = d > 0 ? '+' : '';
+      return `<td class="${cls}">${sign}${d.toFixed(1)} pp</td>`;
+    }
+    function metricRow(name, mA, mB, key) {
+      return `<tr><td>${name}</td><td>${pct(mA[key])}</td><td>${pct(mB[key])}</td>${deltaCell(mA[key], mB[key])}</tr>`;
+    }
+
+    // 按人工真值 G/N 统计翻盘样本构成。
+    function gtBreakdown(list) {
+      const b = { total: list.length, g: 0, n: 0, other: 0 };
+      for (const p of list) {
+        if (p.gt === 'G') b.g += 1;
+        else if (p.gt === 'N') b.n += 1;
+        else b.other += 1;
+      }
+      return b;
+    }
+    function gtBreakdownSub(b) {
+      if (!b.total) return '';
+      const parts = [];
+      if (b.g) parts.push(`真G ${b.g}`);
+      if (b.n) parts.push(`真N ${b.n}`);
+      if (b.other) parts.push(`其他 ${b.other}`);
+      return parts.join(' · ');
+    }
+    function gtSplitTableRow(label, b, showOther) {
+      const otherCol = showOther ? `<td class="num">${b.other || '—'}</td>` : '';
+      return `<tr><td>${label}</td><td class="num">${b.total}</td><td class="num">${b.g}</td><td class="num">${b.n}</td>${otherCol}</tr>`;
+    }
+    function filterByGt(list, gt) {
+      if (!gt) return list;
+      return list.filter((p) => p.gt === gt);
+    }
+
+    async function doCompare() {
+      const aId = $('cmpA').value, bId = $('cmpB').value;
+      if (!aId || !bId) { setCmpMsg('请选择两个 run', true); return; }
+      if (aId === bId) { setCmpMsg('请选择两个不同的 run', true); return; }
+      setCmpMsg('加载中…', false);
+      const [A, B] = await Promise.all([getDetail(aId), getDetail(bId)]);
+      if (!A.meta || !B.meta) { setCmpMsg('读取 run 详情失败', true); return; }
+      setCmpMsg('', false);
+      const mA = A.meta.metrics.overall, mB = B.meta.metrics.overall;
+      const bmWarn = A.meta.bm_id !== B.meta.bm_id
+        ? `<div class="cm-note">⚠ 两个 run 用的快照不同（A: ${A.meta.bm_id} / B: ${B.meta.bm_id}），只对比两边都出现的样本，指标对比仅供参考。</div>` : '';
+
+      // 逐样本对齐（两版都有该样本且都有真值）。
+      const mapA = new Map(A.predictions.map((p) => [p.sample_id, p]));
+      const improve = [], regress = [], bothRight = [], bothWrong = [];
+      for (const pb of B.predictions) {
+        const pa = mapA.get(pb.sample_id);
+        if (!pa || pa.correct === null || pb.correct === null) continue;
+        const item = { sample_id: pb.sample_id, gt: pb.gt_label, a: pa.pred_label, b: pb.pred_label, object_category: pb.object_category };
+        if (pa.correct && pb.correct) bothRight.push(item);
+        else if (!pa.correct && !pb.correct) bothWrong.push(item);
+        else if (!pa.correct && pb.correct) improve.push(item);
+        else regress.push(item);
+      }
+      cmpBuckets = { improve, regress, bothRight, bothWrong };
+      closeFlipView();
+      const inter = improve.length + regress.length + bothRight.length + bothWrong.length;
+      const impGt = gtBreakdown(improve);
+      const regGt = gtBreakdown(regress);
+      const wrongGt = gtBreakdown(bothWrong);
+      const rightGt = gtBreakdown(bothRight);
+      const hasOther = impGt.other + regGt.other + wrongGt.other + rightGt.other > 0;
+
+      $('cmpResult').innerHTML = `
+        ${bmWarn}
+        <table class="cmp-table">
+          <thead><tr><th>指标</th><th>A（基线）</th><th>B（对比）</th><th>Δ (B−A)</th></tr></thead>
+          <tbody>
+            ${metricRow('准确率', mA, mB, 'accuracy')}
+            ${metricRow('夹住精准率', mA, mB, 'grasp_precision')}
+            ${metricRow('夹住召回率', mA, mB, 'grasp_recall')}
+            ${metricRow('没夹住精准率', mA, mB, 'nograsp_precision')}
+            ${metricRow('没夹住召回率', mA, mB, 'nograsp_recall')}
+          </tbody>
+        </table>
+        <div class="cmp-grid">
+          <div class="cmp-col"><h4>A：${A.meta.model}</h4><div class="sub">${A.meta.bm_id} · ${(A.meta.created_at || '').slice(0, 16).replace('T', ' ')}</div>${confusionMatrix(mA)}</div>
+          <div class="cmp-col"><h4>B：${B.meta.model}</h4><div class="sub">${B.meta.bm_id} · ${(B.meta.created_at || '').slice(0, 16).replace('T', ' ')}</div>${confusionMatrix(mB)}</div>
+        </div>
+        <div style="margin-top:12px;font-weight:800;font-size:14px;">翻盘样本（点开看图）</div>
+        <div class="flip-chips">
+          <span class="flip-chip improve" data-bucket="improve">B 把 A 的错改对了<span class="n">${improve.length}</span><span class="gt-sub">${gtBreakdownSub(impGt)}</span></span>
+          <span class="flip-chip regress" data-bucket="regress">B 把 A 的对弄错了<span class="n">${regress.length}</span><span class="gt-sub">${gtBreakdownSub(regGt)}</span></span>
+          <span class="flip-chip" data-bucket="bothWrong">两版都错<span class="n">${bothWrong.length}</span><span class="gt-sub">${gtBreakdownSub(wrongGt)}</span></span>
+          <span class="flip-chip" data-bucket="bothRight">两版都对<span class="n">${bothRight.length}</span><span class="gt-sub">${gtBreakdownSub(rightGt)}</span></span>
+        </div>
+        <table class="cmp-table gt-split-table">
+          <thead><tr><th>翻盘类型</th><th class="num">总数</th><th class="num">真G</th><th class="num">真N</th>${hasOther ? '<th class="num">其他</th>' : ''}</tr></thead>
+          <tbody>
+            ${gtSplitTableRow('改对（B 修正 A 的错）', impGt, hasOther)}
+            ${gtSplitTableRow('改错（B 弄坏 A 的对）', regGt, hasOther)}
+            ${gtSplitTableRow('两版都错', wrongGt, hasOther)}
+            ${gtSplitTableRow('两版都对', rightGt, hasOther)}
+          </tbody>
+        </table>
+        <div class="hint">真G / 真N 按人工标注真值统计。逐样本可对齐 ${inter} 张（两版都评估且有人工真值）。</div>
+        <div id="cmpFlipBox"></div>`;
+    }
+
+    let cmpFlipView = { bucket: '', gt: '' };
+
+    function markChip(bucket) {
+      document.querySelectorAll('.flip-chip').forEach((el) => el.classList.toggle('active', el.dataset.bucket === bucket));
+    }
+    function markGtFilter(gt) {
+      document.querySelectorAll('#cmpFlipBox [data-gt-filter]').forEach((el) => {
+        el.classList.toggle('active', el.dataset.gtFilter === (gt || ''));
+      });
+    }
+    function closeFlipView() {
+      cmpFlipView = { bucket: '', gt: '' };
+      const box = $('cmpFlipBox');
+      if (box) { box.innerHTML = ''; box.dataset.bucket = ''; box.dataset.gt = ''; }
+      markChip('');
+    }
+    function showFlipView(bucket, gt) {
+      cmpFlipView = { bucket, gt: gt || '' };
+      const box = $('cmpFlipBox');
+      if (!box) return;
+      box.dataset.bucket = bucket;
+      box.dataset.gt = gt || '';
+      markChip(bucket);
+
+      const raw = cmpBuckets[bucket] || [];
+      const list = filterByGt(raw, gt || '');
+      const bucketGt = gtBreakdown(raw);
+      const listGt = gtBreakdown(list);
+      const showGtFilter = bucket === 'improve' || bucket === 'regress' || bucket === 'bothWrong' || bucket === 'bothRight';
+      const shown = list.slice(0, 600);
+      const cells = shown.map((p) => {
+        const img = `/api/pool/image?cam=1&sample_id=${encodeURIComponent(p.sample_id)}`;
+        const cls = bucket === 'improve' ? 'imp' : bucket === 'regress' ? 'reg' : (bucket === 'bothWrong' ? 'wrong' : 'right');
+        return `<div class="thumb ${cls}" title="${p.sample_id}\n真值 ${p.gt}\nA 预测 ${p.a}\nB 预测 ${p.b}">
+          <img src="${img}" loading="lazy" alt="" data-lb="${escAttr(p.sample_id)}" data-cap="${escAttr(p.sample_id + ' · 真 ' + (p.gt || '—') + ' · ' + p.a + '→' + p.b)}">
+          <div class="cap"><span>真 ${p.gt}</span><span>${p.a}→${p.b}</span></div>
+        </div>`;
+      }).join('');
+      const gtBar = showGtFilter ? `<div class="gt-filter-chips">
+          <button type="button" class="gt-filter${!gt ? ' active' : ''}" data-gt-filter="">全部 ${raw.length}</button>
+          <button type="button" class="gt-filter${gt === 'G' ? ' active' : ''}" data-gt-filter="G"${bucketGt.g ? '' : ' disabled'}>真G ${bucketGt.g}</button>
+          <button type="button" class="gt-filter${gt === 'N' ? ' active' : ''}" data-gt-filter="N"${bucketGt.n ? '' : ' disabled'}>真N ${bucketGt.n}</button>
+        </div>` : '';
+      const filterNote = gt ? ` · 筛选：真${gt}` : '';
+      box.innerHTML = `<div class="det-toolbar">${list.length} 张${raw.length !== list.length ? `（本类共 ${raw.length} 张）` : ''}${list.length > 600 ? '（显示前 600）' : ''}${filterNote} · ${gtBreakdownSub(listGt) || '无真值'} · 角标：真值 / A→B 预测</div>
+        ${gtBar}
+        <div class="grid">${cells || '<div class="empty">无</div>'}</div>`;
+      markGtFilter(gt || '');
+    }
+    function toggleFlipBucket(bucket) {
+      if (cmpFlipView.bucket === bucket) closeFlipView();
+      else showFlipView(bucket, '');
+    }
+
+    $('startBtn').addEventListener('click', startRun);
+    $('cmpBtn').addEventListener('click', doCompare);
+
+    (async function init() {
+      await loadBms();
+      await loadModels();
+      const epMount = $('customEpMount');
+      if (epMount && window.ModelEndpointUi) {
+        epMount.innerHTML = ModelEndpointUi.endpointUiHtml(false);
+        ModelEndpointUi.bind(epMount, { defaultEndpoint: defaultModelEndpoint });
+      }
+      await loadRuns();
+    })();
+  </script>
+</body>
+</html>

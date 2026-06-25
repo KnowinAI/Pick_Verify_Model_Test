@@ -1,0 +1,795 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BM 快照管理</title>
+  <style>
+    :root {
+      --bg: #f4f6fb; --card: #ffffff; --text: #1e293b; --muted: #64748b;
+      --line: #e4e8f0; --line-soft: #eef2f7; --green: #00a651; --green-dark: #087f45; --blue: #2563eb; --blue-dark: #1d4ed8;
+      --orange: #f97316; --red: #dc2626; --shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.06);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text);
+      font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif; line-height: 1.45; }
+    .page { width: min(1200px, calc(100% - 24px)); margin: 0 auto; padding: 14px 0 40px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+    .topbar h1 { font-size: 19px; margin: 0; letter-spacing: -0.02em; }
+    .nav { display: flex; align-items: center; gap: 3px; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 3px; box-shadow: var(--shadow); }
+    .nav a { color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 600; padding: 5px 11px; border-radius: 7px; transition: background .12s, color .12s; }
+    .nav a:hover { background: var(--line-soft); color: var(--text); text-decoration: none; }
+    .nav a.active { background: var(--green); color: #fff; }
+    .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); margin-top: 14px; }
+    .panel .hd { padding: 10px 14px; border-bottom: 1px solid var(--line); font-weight: 800; font-size: 14px; }
+    .panel .bd { padding: 12px 14px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--line); }
+    th { background: #ecfdf3; color: #064e3b; font-weight: 800; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tbody tr:hover td { background: #f8fafc; }
+    tr:last-child td { border-bottom: none; }
+    .totalrow td { font-weight: 800; background: #f8fafc; }
+    label.fl { display: block; font-size: 12px; color: var(--muted); margin: 6px 0 3px; }
+    select, input[type=text], input[type=number] { width: 100%; font-family: inherit; font-size: 13px; padding: 6px 9px;
+      border-radius: 8px; border: 1px solid var(--line); background: white; transition: border-color .12s, box-shadow .12s; }
+    select:focus, input[type=text]:focus, input[type=number]:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
+    button { font-family: inherit; font-size: 13px; cursor: pointer; border-radius: 8px;
+      border: 1px solid var(--line); padding: 7px 14px; background: white; color: var(--text); }
+    button:hover { border-color: #cbd5e1; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    button.primary { background: var(--green); border-color: var(--green); color: white; font-weight: 700; }
+    button.primary:hover { background: var(--green-dark); border-color: var(--green-dark); }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 6px 14px; align-items: end; }
+    .form-grid .full { grid-column: 1 / -1; }
+    .chk { display: flex; align-items: center; gap: 6px; font-size: 13px; margin-top: 18px; }
+    .chk input { width: auto; }
+    .saverow { display: flex; gap: 10px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+    .msg { font-size: 13px; }
+    .msg.ok { color: var(--green-dark); }
+    .msg.err { color: var(--red); }
+    .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .snap { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+    .snap h3 { margin: 0 0 4px; font-size: 14px; }
+    .snap .meta { font-size: 12px; color: var(--muted); }
+    .snap .acts { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .snap a.btn { text-decoration: none; }
+    .pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .pill { font-size: 11px; background: #f1f5f9; border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
+    .empty { color: var(--muted); padding: 16px; text-align: center; }
+    details { margin-top: 8px; }
+    summary { cursor: pointer; font-size: 12px; color: var(--blue); }
+    .det-table { margin-top: 8px; max-height: 300px; overflow: auto; }
+    .bm-grid { margin-top: 8px; max-height: 78vh; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; padding: 4px; }
+    .bm-thumb { position: relative; border-radius: 8px; overflow: hidden; background: #0f172a; aspect-ratio: 1 / 1; border: 1px solid var(--line); }
+    .bm-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .bm-thumb .cap { position: absolute; bottom: 0; left: 0; right: 0; font-size: 10px; background: rgba(15,23,42,.74); color: #fff; padding: 1px 5px; display: flex; justify-content: space-between; gap: 4px; }
+    .bm-thumb .cap .gn { font-weight: 800; }
+    .bm-thumb .cap .gn.g { color: #4ade80; }
+    .bm-thumb .cap .gn.n { color: #fca5a5; }
+    .bm-thumb.pick { cursor: pointer; }
+    .bm-thumb.sel { border-color: var(--green); box-shadow: 0 0 0 2px rgba(0,166,81,.3); }
+    .bm-thumb .chk { position: absolute; top: 4px; left: 4px; width: 16px; height: 16px; cursor: pointer; }
+    .bm-thumb .mtag { position: absolute; top: 5px; right: 5px; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px; color: #fff; white-space: nowrap; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+    .bm-thumb .mtag.ok { background: rgba(0,166,81,.94); }
+    .bm-thumb .mtag.bad { background: rgba(220,38,38,.94); }
+    .bm-thumb .mtag.na { background: rgba(71,85,105,.94); }
+    .bm-thumb.invalid img { opacity: .42; }
+    .bm-thumb .invalid-badge { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(220,38,38,.92); color: #fff; font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+    .det-toolbar { display: flex; gap: 10px; align-items: center; margin-top: 8px; font-size: 12px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <h1>BM 快照管理</h1>
+      <nav class="nav">
+        <a href="/pool">样本池</a>
+        <a href="/label">标注</a>
+        <a href="/bm" class="active">BM快照</a>
+        <a href="/runs">模型评测</a>
+      </nav>
+    </div>
+
+    <!-- 标注进度 -->
+    <div class="panel">
+      <div class="hd">标注进度（可冻结的样本来源）</div>
+      <div class="bd">
+        <table id="statsTable"><tbody><tr><td class="empty">加载中…</td></tr></tbody></table>
+      </div>
+    </div>
+
+    <!-- 新建快照 -->
+    <div class="panel">
+      <div class="hd">新建 BM 快照</div>
+      <div class="bd">
+        <div class="form-grid">
+          <div>
+            <label class="fl">版本名称</label>
+            <input type="text" id="bmId" placeholder="如 BM_v1">
+          </div>
+          <div class="full">
+            <label class="fl">备注</label>
+            <input type="text" id="note" placeholder="选填，说明这个版本的用途">
+          </div>
+        </div>
+
+        <div class="modetabs" style="display:flex;gap:8px;margin:12px 0 8px;">
+          <button id="tabManual" class="primary">从大水池挑选</button>
+          <button id="tabAuto" class="ghost">自动配额抽样</button>
+        </div>
+
+        <!-- 手动挑选 -->
+        <div id="manualPanel">
+          <div id="addBanner" hidden style="margin:0 0 8px;padding:8px 10px;border-radius:8px;background:#dbeafe;color:#1e3a8a;font-size:13px;display:flex;align-items:center;gap:10px;">
+            <span>追加模式：挑选的样本将<b>追加到快照「<span id="addTargetName"></span>」</b>（不会新建）。</span>
+            <button id="cancelAdd" class="ghost" style="margin-left:auto;">退出追加模式</button>
+          </div>
+          <div class="det-toolbar" style="flex-wrap:wrap;">
+            <select id="pCategory" style="width:auto;"></select>
+            <select id="pStatus" style="width:auto;">
+              <option value="labeled">已标注</option>
+              <option value="all">全部</option>
+              <option value="unlabeled">未标注</option>
+            </select>
+            <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px;">每行
+              <select id="pCols" style="width:auto;"><option value="auto">自动</option><option value="6">6</option><option value="8">8</option><option value="10">10</option><option value="12">12</option></select>
+            </label>
+            <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px;">每页
+              <select id="pPageSize" style="width:auto;"><option value="60">60</option><option value="120">120</option><option value="240">240</option><option value="480">480</option></select>
+            </label>
+            <button id="pSelPage">全选本页</button>
+            <button id="pClear">清空选择</button>
+            <button id="pMarkInvalid" title="把选中的图标为「无效」并从挑选页隐藏。不删除原图，只改标注，可随时恢复">标为无效并隐藏</button>
+            <button id="pMarkValid" title="把选中的图恢复为「有效」（勾选“显示无效”后可见并选中要恢复的图）">恢复有效</button>
+            <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px;" title="勾选后挑选页会显示已标为无效的图（默认隐藏）"><input type="checkbox" id="pShowInvalid">显示无效</label>
+            <span id="pInvalidMsg" style="font-size:12px;color:var(--muted)"></span>
+            <button id="pPrev">上一页</button>
+            <span id="pPageInfo" style="font-size:12px;color:var(--muted)"></span>
+            <button id="pNext">下一页</button>
+            <span id="pMatch" style="font-weight:700;color:var(--green-dark);margin-left:6px;"></span>
+          </div>
+          <div class="det-toolbar" style="flex-wrap:wrap;">
+            <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px;" title="用哪个模型版本即时跑预测">模型版本
+              <select id="pModelSel" style="width:auto;"><option value="">加载中…</option></select>
+            </label>
+            <button id="pBatchVlm" title="对当前页所有图片逐个调用模型，结果显示在图片上（不写入任何 run）">跑当前页模型</button>
+            <span id="pBatchVlmMsg" style="font-size:12px;color:var(--muted)"></span>
+            <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px;" title="按模型结果筛选（仅对当前页已跑过模型的图生效）">模型结果
+              <select id="pModelFilter" style="width:auto;">
+                <option value="">全部</option>
+                <option value="wrong">判错（模型≠人工）</option>
+                <option value="correct">判对（模型=人工）</option>
+                <option value="fp">误判（实际没夹住→判夹住）</option>
+                <option value="fn">漏判（实际夹住→判没夹住）</option>
+                <option value="pred_g">预测夹住</option>
+                <option value="pred_n">预测没夹住</option>
+              </select>
+            </label>
+          </div>
+          <div class="det-toolbar" id="pickFilters" style="flex-wrap:wrap;"></div>
+          <div class="hint">点图/勾选多选 · Shift 区间 · Ctrl+A 全选本页 · Esc 清空。选择会跨页/跨筛选累积。模型结果与「模型结果」筛选只对当前页跑过模型的图生效。</div>
+          <div class="bm-grid" id="pickGrid" style="max-height:460px;"></div>
+        </div>
+
+        <!-- 自动配额 -->
+        <div id="autoForm" hidden>
+          <div class="form-grid">
+            <div>
+              <label class="fl">每类数量（留空=全部已标注）</label>
+              <input type="number" id="perCategory" min="1" placeholder="如 50">
+            </div>
+            <div>
+              <label class="fl">随机种子（留空=自动，可复现）</label>
+              <input type="number" id="seed" placeholder="如 42">
+            </div>
+            <div class="chk"><input type="checkbox" id="balanceLabel"><label for="balanceLabel">G/N 尽量均衡</label></div>
+            <div class="chk"><input type="checkbox" id="onlyApproved"><label for="onlyApproved">仅纳入复核通过(approved)</label></div>
+          </div>
+        </div>
+
+        <div class="hint">快照会冻结所选样本的 sample_id 与当时的标注内容到 eval_registry/bm/&lt;版本名&gt;/，只读不改原数据。</div>
+        <div class="saverow">
+          <button class="primary" id="createBtn">创建快照（已选 <span id="pickCount">0</span> 张）</button>
+          <span class="msg" id="createMsg"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 已有快照 -->
+    <div class="panel">
+      <div class="hd">已有快照</div>
+      <div class="bd" id="snapList"><div class="empty">加载中…</div></div>
+    </div>
+  </div>
+
+  <script src="/annotation_schema.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    // 可筛选字段由单一数据源（annotation_schema.js）派生，新增标签自动出现在筛选里。
+    // 规则：排除 system 字段；select/multi 默认可筛选，text 需显式 filter:true（如物品名称）。
+    const SCHEMA_FILTERABLE = ANNOTATION_SCHEMA.filter(
+      (f) => !f.system && (f.type === 'select' || f.type === 'multi' || f.filter === true),
+    );
+    // 快照内筛选：固定前缀（类别 / G-N）+ 派生字段。multi=true 表示数组字段按“包含”匹配。
+    const FILTER_FIELDS = [
+      { key: 'object_category', label: '类别' },
+      { key: 'label', label: 'G/N' },
+      ...SCHEMA_FILTERABLE.map((f) => ({ key: f.key, label: f.label, multi: f.type === 'multi' })),
+    ];
+
+    async function loadStats() {
+      const r = await fetch('/api/bm/stats');
+      const data = await r.json();
+      const rows = data.rows || [];
+      const t = data.totals || { total: 0, annotated: 0, g: 0, n: 0, approved: 0 };
+      let html = `<thead><tr>
+        <th>物品类别</th><th class="num">总数</th><th class="num">已标注</th>
+        <th class="num">G(夹住)</th><th class="num">N(未夹住)</th><th class="num">复核通过</th>
+      </tr></thead><tbody>`;
+      html += rows.map((row) => `<tr>
+        <td>${row.category}</td>
+        <td class="num">${row.total}</td>
+        <td class="num">${row.annotated}</td>
+        <td class="num">${row.g}</td>
+        <td class="num">${row.n}</td>
+        <td class="num">${row.approved}</td>
+      </tr>`).join('');
+      html += `<tr class="totalrow">
+        <td>合计</td>
+        <td class="num">${t.total}</td>
+        <td class="num">${t.annotated}</td>
+        <td class="num">${t.g}</td>
+        <td class="num">${t.n}</td>
+        <td class="num">${t.approved}</td>
+      </tr></tbody>`;
+      $('statsTable').innerHTML = html;
+    }
+
+    async function loadSnapshots() {
+      const r = await fetch('/api/bm/list');
+      const data = await r.json();
+      const snaps = data.snapshots || [];
+      if (!snaps.length) { $('snapList').innerHTML = '<div class="empty">还没有快照</div>'; return; }
+      $('snapList').innerHTML = snaps.map((s) => {
+        const cats = Object.entries(s.per_category_counts || {}).map(([k, v]) => `<span class="pill">${k}: ${v}</span>`).join('');
+        const crit = s.criteria || {};
+        const locked = !!s.locked;
+        return `<div class="snap">
+          <h3>${s.bm_id} ${locked ? '<span class="pill" style="background:#fde68a;color:#92400e;">🔒 已锁定</span>' : ''}</h3>
+          <div class="meta">建于 ${s.created_at} · 共 ${s.total} 张（G ${s.label_counts ? s.label_counts.G : 0} / N ${s.label_counts ? s.label_counts.N : 0}）
+            · 每类 ${crit.per_category === null || crit.per_category === undefined ? '全部' : crit.per_category}
+            · 均衡 ${crit.balance_label ? '是' : '否'} · 仅复核通过 ${crit.only_approved ? '是' : '否'} · seed ${crit.seed}</div>
+          ${s.note ? `<div class="meta">备注：${s.note}</div>` : ''}
+          <div class="pills">${cats}</div>
+          <div class="acts">
+            <a class="btn" href="/api/bm/download?bm_id=${encodeURIComponent(s.bm_id)}"><button>下载 snapshot.jsonl</button></a>
+            <button onclick="toggleDetail('${s.bm_id}', this)">查看样本</button>
+            <button onclick="startAddSamples('${s.bm_id}', ${locked})" ${locked ? 'disabled title="已锁定，请先解锁"' : 'title="从大水池挑选样本追加到此快照"'}>添加样本</button>
+            <button onclick="toggleLock('${s.bm_id}', ${locked ? 'false' : 'true'})">${locked ? '解锁' : '锁定'}</button>
+            <button onclick="deleteSnapshot('${s.bm_id}', ${locked})" ${locked ? 'disabled title="已锁定，请先解锁"' : 'title="删除该快照（不可恢复）"'} style="color:#b91c1c;">删除</button>
+          </div>
+          <div class="det" id="det_${cssId(s.bm_id)}"></div>
+        </div>`;
+      }).join('');
+    }
+
+    function cssId(s) { return s.replace(/[^A-Za-z0-9_]/g, '_'); }
+
+    // 锁定/解锁快照：锁定后该快照禁止删除，避免误删基准。
+    window.toggleLock = async function (bmId, locked) {
+      try {
+        const r = await fetch('/api/bm/lock', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bm_id: bmId, locked }),
+        });
+        const d = await r.json();
+        if (!r.ok || !d.ok) { alert(d.message || '操作失败'); return; }
+      } catch (e) { alert('操作失败：' + (e.message || e)); return; }
+      loadSnapshots();
+    };
+
+    // 删除快照：二次确认，已锁定的会被后端拒绝。
+    window.deleteSnapshot = async function (bmId, locked) {
+      if (locked) { alert('该快照已锁定，请先解锁再删除'); return; }
+      if (!confirm(`确认删除快照「${bmId}」？此操作不可恢复（仅删除该快照目录，不影响原图与样本池）。`)) return;
+      try {
+        const r = await fetch('/api/bm/delete', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bm_id: bmId }),
+        });
+        const d = await r.json();
+        if (!r.ok || !d.ok) { alert(d.message || '删除失败'); return; }
+      } catch (e) { alert('删除失败：' + (e.message || e)); return; }
+      loadSnapshots();
+    };
+
+    window.toggleDetail = async function (bmId, btn) {
+      const box = $('det_' + cssId(bmId));
+      if (box.dataset.open === '1') { box.innerHTML = ''; box.dataset.open = '0'; btn.textContent = '查看样本'; return; }
+      btn.textContent = '收起样本';
+      box.dataset.open = '1';
+      const r = await fetch('/api/bm/detail?bm_id=' + encodeURIComponent(bmId));
+      const data = await r.json();
+      if (!data.ok) { box.innerHTML = '<div class="empty">加载失败</div>'; return; }
+      box.dataset.samples = JSON.stringify(data.samples || []);
+      box.dataset.view = 'grid';
+      renderDetailView(box, bmId);
+    };
+
+    function getFilters(box) {
+      try { return JSON.parse(box.dataset.filters || '{}'); } catch (e) { return {}; }
+    }
+
+    function sampleMatches(x, filters) {
+      for (const f of FILTER_FIELDS) {
+        const want = filters[f.key];
+        if (!want) continue;
+        if (f.multi) {
+          const arr = Array.isArray(x[f.key]) ? x[f.key] : [];
+          if (!arr.includes(want)) return false;
+        } else if ((x[f.key] || '') !== want) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    function renderDetailView(box, bmId) {
+      const samples = JSON.parse(box.dataset.samples || '[]');
+      const view = box.dataset.view || 'grid';
+      const filters = getFilters(box);
+
+      const filtered = samples.filter((x) => sampleMatches(x, filters));
+
+      // 为每个字段生成下拉，选项取该快照实际出现的值。
+      const selects = FILTER_FIELDS.map((f) => {
+        const vals = new Set();
+        samples.forEach((x) => {
+          if (f.multi) (Array.isArray(x[f.key]) ? x[f.key] : []).forEach((v) => { if (v) vals.add(v); });
+          else if (x[f.key]) vals.add(x[f.key]);
+        });
+        if (vals.size === 0) return '';
+        const cur = filters[f.key] || '';
+        const opts = [`<option value="">${f.label}</option>`]
+          .concat(Array.from(vals).sort().map((v) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${v}</option>`))
+          .join('');
+        return `<select onchange="setDetailFilter('${bmId}','${f.key}',this.value)" title="${f.label}" style="width:auto;">${opts}</select>`;
+      }).join('');
+
+      const active = Object.keys(filters).some((k) => filters[k]);
+      const limit = 500;
+      const shown = filtered.slice(0, limit);
+      const more = filtered.length > limit ? `<span class="hint">仅显示前 ${limit} 张</span>` : '';
+
+      const toolbar = `<div class="det-toolbar" style="flex-wrap:wrap;">
+        <span>筛选后 <b>${filtered.length}</b> / 共 ${samples.length} 张</span>
+        <button onclick="switchDetailView('${bmId}','grid')">图片</button>
+        <button onclick="switchDetailView('${bmId}','table')">列表</button>
+        ${active ? `<button onclick="clearDetailFilters('${bmId}')">清空筛选</button>` : ''}
+        ${more}
+      </div>
+      <div class="det-toolbar" style="flex-wrap:wrap;">${selects}</div>`;
+
+      if (!shown.length) { box.innerHTML = toolbar + '<div class="empty">没有符合筛选条件的样本</div>'; return; }
+
+      if (view === 'table') {
+        const rows = shown.map((x) => `<tr>
+          <td>${x.sample_id}</td><td>${x.object_category}</td><td>${x.human_result || ''}</td><td>${x.label || ''}</td>
+        </tr>`).join('');
+        box.innerHTML = toolbar + `<div class="det-table"><table>
+          <thead><tr><th>sample_id</th><th>类别</th><th>人工结果</th><th>G/N</th></tr></thead>
+          <tbody>${rows}</tbody></table></div>`;
+        return;
+      }
+      const cells = shown.map((x) => {
+        const img = `/api/pool/image?cam=1&sample_id=${encodeURIComponent(x.sample_id)}`;
+        const gn = x.label === 'G' ? '<span class="gn g">G</span>' : x.label === 'N' ? '<span class="gn n">N</span>' : '<span class="gn"></span>';
+        return `<div class="bm-thumb" title="${x.sample_id}\n${x.object_category} · ${x.human_result || ''}">
+          <img src="${img}" loading="lazy" alt="">
+          <div class="cap"><span>${x.object_category}</span>${gn}</div>
+        </div>`;
+      }).join('');
+      box.innerHTML = toolbar + `<div class="bm-grid">${cells}</div>`;
+    }
+
+    window.switchDetailView = function (bmId, view) {
+      const box = $('det_' + cssId(bmId));
+      if (!box) return;
+      box.dataset.view = view;
+      renderDetailView(box, bmId);
+    };
+
+    window.setDetailFilter = function (bmId, key, value) {
+      const box = $('det_' + cssId(bmId));
+      if (!box) return;
+      const filters = getFilters(box);
+      if (value) filters[key] = value; else delete filters[key];
+      box.dataset.filters = JSON.stringify(filters);
+      renderDetailView(box, bmId);
+    };
+
+    window.clearDetailFilters = function (bmId) {
+      const box = $('det_' + cssId(bmId));
+      if (!box) return;
+      box.dataset.filters = '{}';
+      renderDetailView(box, bmId);
+    };
+
+    async function createSnapshot() {
+      // 追加模式：把已选样本追加到目标快照，不新建。
+      if (pick.addTarget) {
+        if (pick.selected.size === 0) { setMsg('请先从大水池挑选要追加的样本', true); return; }
+        $('createBtn').disabled = true;
+        setMsg('追加中…', false);
+        let data;
+        try {
+          const r = await fetch('/api/bm/add-samples', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bm_id: pick.addTarget, sample_ids: Array.from(pick.selected) }),
+          });
+          data = await r.json();
+          if (!r.ok || !data.ok) { $('createBtn').disabled = false; setMsg(data.message || '追加失败', true); return; }
+        } catch (e) { $('createBtn').disabled = false; setMsg('追加失败：' + (e.message || e), true); return; }
+        $('createBtn').disabled = false;
+        const skip = data.skipped_existing ? `，跳过已存在 ${data.skipped_existing} 张` : '';
+        const miss = (data.missing && data.missing.length) ? `，${data.missing.length} 张找不到` : '';
+        setMsg(`已向「${pick.addTarget}」追加 ${data.added} 张${skip}${miss}，现共 ${data.meta.total} 张`, false);
+        pick.selected.clear();
+        exitAddMode();
+        updatePickCount();
+        await loadStats();
+        await loadSnapshots();
+        loadPick();
+        return;
+      }
+      const bmId = $('bmId').value.trim();
+      if (!bmId) { setMsg('请填写版本名称', true); return; }
+      const body = { bmId, note: $('note').value.trim() };
+      if (pick.mode === 'manual') {
+        if (pick.selected.size === 0) { setMsg('请先从大水池挑选样本', true); return; }
+        body.sampleIds = Array.from(pick.selected);
+      } else {
+        body.perCategory = $('perCategory').value.trim();
+        body.seed = $('seed').value.trim();
+        body.balanceLabel = $('balanceLabel').checked;
+        body.onlyApproved = $('onlyApproved').checked;
+      }
+      $('createBtn').disabled = true;
+      setMsg('创建中…', false);
+      const r = await fetch('/api/bm/create', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await r.json();
+      $('createBtn').disabled = false;
+      if (!data.ok) { setMsg(data.message || '创建失败', true); return; }
+      const un = data.meta.unlabeled_count ? `，其中未标注 ${data.meta.unlabeled_count} 张` : '';
+      setMsg(`已创建 ${data.meta.bm_id}，共 ${data.meta.total} 张${un}`, false);
+      $('bmId').value = '';
+      pick.selected.clear();
+      updatePickCount();
+      await loadStats();
+      await loadSnapshots();
+      if (pick.mode === 'manual') loadPick();
+    }
+
+    function setMsg(text, isErr) {
+      const el = $('createMsg');
+      el.textContent = text;
+      el.className = 'msg ' + (isErr ? 'err' : 'ok');
+    }
+
+    $('createBtn').addEventListener('click', createSnapshot);
+    $('cancelAdd').addEventListener('click', () => { exitAddMode(); setMsg('已退出追加模式', false); });
+
+    // ---- 手动挑选（大水池）----
+    // 挑选区按标注字段筛选（服务端过滤）。multi 字段按“包含”匹配。
+    // 由单一数据源派生：固定前缀 G/N + 所有非系统的 select/multi 字段（带固定选项）。
+    // shortLabel 优先，给紧凑筛选栏用更短的名；新增标签自动出现在这里。
+    const PICK_FILTER_FIELDS = [
+      { key: 'label', label: 'G/N', options: ['G', 'N'] },
+      ...ANNOTATION_SCHEMA
+        .filter((f) => !f.system && (f.type === 'select' || f.type === 'multi'))
+        .map((f) => ({ key: f.key, label: f.shortLabel || f.label, multi: f.type === 'multi', options: f.options || [] })),
+    ];
+
+    const pick = { mode: 'manual', category: '', status: 'labeled', offset: 0, limit: 60, total: 0, cols: 'auto', selected: new Set(), pageSamples: [], lastIndex: null, filters: {}, addTarget: '', models: [], modelKey: '', vlm: {}, modelFilter: '', showInvalid: false };
+
+    // 读取模型注册表，填充「模型版本」下拉；默认选第一项。
+    async function loadPickModels() {
+      const sel = $('pModelSel');
+      try {
+        const r = await fetch('/api/models');
+        const data = await r.json();
+        pick.models = (data && data.models) || [];
+      } catch (e) { pick.models = []; }
+      if (!pick.models.length) { sel.innerHTML = '<option value="">未配置模型</option>'; pick.modelKey = ''; return; }
+      sel.innerHTML = pick.models.map((m) => `<option value="${m.key}">${m.label || m.key}</option>`).join('');
+      pick.modelKey = pick.models[0].key;
+      sel.value = pick.modelKey;
+    }
+
+    function pickModelLabel(key) {
+      const m = pick.models.find((x) => x.key === key);
+      return m ? (m.label || m.key) : (key || '');
+    }
+
+    // 某样本的人工 G/N（优先 label，其次由 human_result 推导）。
+    function humanLabelOf(s) {
+      if (s.label === 'G' || s.label === 'N') return s.label;
+      if (s.human_result === '夹住') return 'G';
+      if (s.human_result === '未夹住') return 'N';
+      return '';
+    }
+
+    // 缩略图上的模型结果小标签；有人工结果时对比标 ✓/✗。
+    function pickVlmTagHtml(s) {
+      const v = pick.vlm[s.sample_id];
+      if (!v) return '';
+      const predText = v.pred === 'G' ? '夹住' : v.pred === 'N' ? '未夹住' : '无法识别';
+      let cls = 'na', mark = '';
+      if (v.pred === 'G' || v.pred === 'N') {
+        const hl = humanLabelOf(s);
+        if (hl) { const bad = hl !== v.pred; cls = bad ? 'bad' : 'ok'; mark = bad ? ' ✗' : ' ✓'; }
+      }
+      const title = `模型原始：${v.raw || v.pred}${v.model ? ' · ' + v.model : ''}`;
+      return `<div class="mtag ${cls}" title="${String(title).replace(/"/g, '&quot;')}">模:${predText}${mark}</div>`;
+    }
+
+    // 是否满足当前「模型结果」筛选（未跑过模型的图在筛选生效时一律不显示）。
+    function matchModelFilter(s) {
+      if (!pick.modelFilter) return true;
+      const v = pick.vlm[s.sample_id];
+      if (!v) return false;
+      const pred = v.pred;
+      const hl = humanLabelOf(s);
+      switch (pick.modelFilter) {
+        case 'pred_g': return pred === 'G';
+        case 'pred_n': return pred === 'N';
+        case 'correct': return (pred === 'G' || pred === 'N') && hl && pred === hl;
+        case 'wrong': return (pred === 'G' || pred === 'N') && hl && pred !== hl;
+        case 'fp': return hl === 'N' && pred === 'G';
+        case 'fn': return hl === 'G' && pred === 'N';
+        default: return true;
+      }
+    }
+
+    function renderPickFilters() {
+      $('pickFilters').innerHTML = PICK_FILTER_FIELDS.map((f) => {
+        const cur = pick.filters[f.key] || '';
+        const opts = [`<option value="">${f.label}</option>`]
+          .concat(f.options.map((o) => `<option value="${o}" ${cur === o ? 'selected' : ''}>${o}</option>`)).join('');
+        return `<select data-fkey="${f.key}" title="${f.label}" style="width:auto;">${opts}</select>`;
+      }).join('') + (Object.keys(pick.filters).some((k) => pick.filters[k]) ? '<button id="pFilterClear">清空筛选</button>' : '');
+      $('pickFilters').querySelectorAll('select[data-fkey]').forEach((sel) => {
+        sel.addEventListener('change', (e) => {
+          const key = sel.dataset.fkey;
+          if (e.target.value) pick.filters[key] = e.target.value; else delete pick.filters[key];
+          pick.offset = 0; loadPick();
+        });
+      });
+      const clr = $('pFilterClear');
+      if (clr) clr.addEventListener('click', () => { pick.filters = {}; pick.offset = 0; loadPick(); });
+    }
+
+    function setMode(mode) {
+      pick.mode = mode;
+      const manual = mode === 'manual';
+      // 自动配额抽样只用于新建快照，进入时退出“追加模式”。
+      if (!manual && pick.addTarget) exitAddMode();
+      $('manualPanel').hidden = !manual;
+      $('autoForm').hidden = manual;
+      $('tabManual').className = manual ? 'primary' : 'ghost';
+      $('tabAuto').className = manual ? 'ghost' : 'primary';
+      if (manual && !pick.pageSamples.length) loadPick();
+    }
+
+    async function loadPickCategories() {
+      const r = await fetch('/api/pool/status');
+      const data = await r.json();
+      const cats = Object.keys(data.samples_per_category || {});
+      $('pCategory').innerHTML = '<option value="">全部类别</option>' +
+        cats.map((c) => `<option value="${c}">${c} (${data.samples_per_category[c]})</option>`).join('');
+    }
+
+    async function loadPick() {
+      const params = new URLSearchParams({ category: pick.category, ann_status: pick.status, limit: String(pick.limit), offset: String(pick.offset) });
+      if (Object.keys(pick.filters).some((k) => pick.filters[k])) params.set('filters', JSON.stringify(pick.filters));
+      if (!pick.showInvalid) params.set('exclude_invalid', '1');
+      const r = await fetch('/api/pool/samples?' + params.toString());
+      const data = await r.json();
+      pick.total = data.total;
+      pick.pageSamples = data.samples || [];
+      pick.lastIndex = null;
+      const from = data.total ? pick.offset + 1 : 0;
+      const to = Math.min(pick.offset + pick.limit, data.total);
+      $('pPageInfo').textContent = `${from}-${to} / ${data.total}`;
+      $('pMatch').textContent = `符合筛选 ${data.total} 张`;
+      $('pPrev').disabled = pick.offset <= 0;
+      $('pNext').disabled = pick.offset + pick.limit >= data.total;
+      renderPickFilters();
+      renderPickGrid();
+    }
+
+    function applyPickCols() {
+      $('pickGrid').style.gridTemplateColumns = pick.cols === 'auto'
+        ? 'repeat(auto-fill, minmax(110px, 1fr))' : `repeat(${pick.cols}, 1fr)`;
+    }
+
+    function renderPickGrid() {
+      const grid = $('pickGrid');
+      applyPickCols();
+      if (!pick.pageSamples.length) { grid.innerHTML = '<div class="empty">没有符合条件的样本</div>'; updatePickCount(); return; }
+      // 用页内索引保留 handlePick 的区间逻辑；模型结果筛选只隐藏不匹配的项。
+      const visible = pick.pageSamples
+        .map((s, idx) => ({ s, idx }))
+        .filter((x) => matchModelFilter(x.s));
+      if (!visible.length) {
+        grid.innerHTML = '<div class="empty">当前页没有符合「模型结果」筛选的图（可能还没跑模型）</div>';
+        updatePickCount(); return;
+      }
+      grid.innerHTML = visible.map(({ s, idx }) => {
+        const img = `/api/pool/image?cam=1&sample_id=${encodeURIComponent(s.sample_id)}`;
+        const sel = pick.selected.has(s.sample_id);
+        const gn = s.label === 'G' ? '<span class="gn g">G</span>' : s.label === 'N' ? '<span class="gn n">N</span>' : '<span class="gn"></span>';
+        const invalid = s.sample_validity === 'invalid';
+        return `<div class="bm-thumb pick ${sel ? 'sel' : ''} ${invalid ? 'invalid' : ''}" data-id="${s.sample_id}" data-idx="${idx}" title="${s.sample_id}">
+          <input type="checkbox" class="chk" ${sel ? 'checked' : ''}>
+          <img src="${img}" loading="lazy" alt="">
+          ${pickVlmTagHtml(s)}
+          ${invalid ? '<div class="invalid-badge">无效</div>' : ''}
+          <div class="cap"><span>${s.labeled ? (s.human_result || '已标') : '未标'}</span>${gn}</div>
+        </div>`;
+      }).join('');
+      grid.querySelectorAll('.bm-thumb').forEach((el) => {
+        const idx = parseInt(el.dataset.idx, 10);
+        el.querySelector('img').addEventListener('click', (e) => handlePick(idx, e));
+        el.querySelector('.chk').addEventListener('click', (e) => { e.stopPropagation(); handlePick(idx, e); });
+      });
+      updatePickCount();
+    }
+
+    function handlePick(idx, e) {
+      const arr = pick.pageSamples;
+      if (e.shiftKey && pick.lastIndex !== null) {
+        const lo = Math.min(pick.lastIndex, idx);
+        const hi = Math.max(pick.lastIndex, idx);
+        for (let i = lo; i <= hi; i += 1) pick.selected.add(arr[i].sample_id);
+      } else {
+        const id = arr[idx].sample_id;
+        if (pick.selected.has(id)) pick.selected.delete(id); else pick.selected.add(id);
+        pick.lastIndex = idx;
+      }
+      renderPickGrid();
+    }
+
+    function updatePickCount() { $('pickCount').textContent = String(pick.selected.size); refreshCreateBtn(); }
+
+    // 按当前模式（新建/追加）刷新提交按钮文案与追加横幅。
+    function refreshCreateBtn() {
+      const n = pick.selected.size;
+      const btn = $('createBtn');
+      if (pick.addTarget) {
+        btn.textContent = `追加到「${pick.addTarget}」（已选 ${n} 张）`;
+      } else {
+        btn.innerHTML = `创建快照（已选 <span id="pickCount">${n}</span> 张）`;
+      }
+      const banner = $('addBanner');
+      if (banner) {
+        banner.hidden = !pick.addTarget;
+        if (pick.addTarget) $('addTargetName').textContent = pick.addTarget;
+      }
+    }
+
+    // 进入“向某快照追加样本”的模式：切到手动挑选，清空已选，滚动到挑选区。
+    window.startAddSamples = function (bmId, locked) {
+      if (locked) { alert('该快照已锁定，请先解锁再追加样本'); return; }
+      pick.addTarget = bmId;
+      pick.selected.clear();
+      setMode('manual');
+      refreshCreateBtn();
+      updatePickCount();
+      setMsg('', false);
+      const panel = $('manualPanel');
+      if (panel && panel.scrollIntoView) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    function exitAddMode() {
+      pick.addTarget = '';
+      refreshCreateBtn();
+    }
+
+    // 对当前页所有图片逐个即时跑模型（顺序执行），结果显示在图片上；不写入任何 run。
+    async function runPickVlmBatch() {
+      const samples = pick.pageSamples.slice();
+      if (!samples.length) { $('pBatchVlmMsg').textContent = '当前页没有图片'; return; }
+      if (samples.length > 20 && !confirm(`将对当前页 ${samples.length} 张逐个调用模型，可能较慢，确定吗？`)) return;
+      const btn = $('pBatchVlm');
+      const old = btn.textContent;
+      btn.disabled = true;
+      let ok = 0, fail = 0;
+      for (let i = 0; i < samples.length; i += 1) {
+        const s = samples[i];
+        btn.textContent = `跑模型中… ${i + 1}/${samples.length}`;
+        $('pBatchVlmMsg').textContent = `成功 ${ok} · 失败 ${fail}`;
+        try {
+          const r = await fetch('/api/pool/vlm', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sample_id: s.sample_id, model_key: pick.modelKey }),
+          });
+          const d = await r.json();
+          if (!r.ok || !d.ok) throw new Error(d.error || d.message || '失败');
+          pick.vlm[s.sample_id] = { pred: d.pred, raw: d.raw, model: pickModelLabel(d.model_key || pick.modelKey) || d.model, model_key: d.model_key || pick.modelKey };
+          ok += 1;
+          renderPickGrid();
+        } catch (e) { fail += 1; }
+      }
+      btn.disabled = false; btn.textContent = old;
+      $('pBatchVlmMsg').textContent = `完成：成功 ${ok} · 失败 ${fail} / 共 ${samples.length}`;
+    }
+
+    $('pModelSel').addEventListener('change', (e) => { pick.modelKey = e.target.value; });
+    $('pBatchVlm').addEventListener('click', runPickVlmBatch);
+    $('pModelFilter').addEventListener('change', (e) => { pick.modelFilter = e.target.value; renderPickGrid(); });
+
+    // 把选中的样本标为「无效」或恢复「有效」。只改标注（sample_validity），不删除原图与登记。
+    async function markSelectedValidity(validity) {
+      const ids = Array.from(pick.selected);
+      if (!ids.length) { $('pInvalidMsg').textContent = '请先选中要处理的图'; return; }
+      if (validity === 'invalid' && !confirm(`将把选中的 ${ids.length} 张标为「无效」并从挑选页隐藏。\n不会删除原图，只改标注，勾选“显示无效”后可随时恢复。\n确定吗？`)) return;
+      const bi = $('pMarkInvalid'); const bv = $('pMarkValid');
+      bi.disabled = true; bv.disabled = true;
+      $('pInvalidMsg').textContent = '处理中…';
+      try {
+        const r = await fetch('/api/pool/annotate-batch', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sample_ids: ids, fields: { sample_validity: validity }, operator: '' }),
+        });
+        const d = await r.json();
+        if (!d.ok) { $('pInvalidMsg').textContent = d.message || '处理失败'; return; }
+        // 标为无效后从已选里移除，避免误加入快照；恢复有效则保留选择。
+        if (validity === 'invalid') ids.forEach((id) => pick.selected.delete(id));
+        await loadPick();
+        $('pInvalidMsg').textContent = validity === 'invalid' ? `已标为无效并隐藏 ${d.applied} 张` : `已恢复有效 ${d.applied} 张`;
+      } catch (e) {
+        $('pInvalidMsg').textContent = e.message || String(e);
+      } finally {
+        bi.disabled = false; bv.disabled = false;
+      }
+    }
+
+    $('pMarkInvalid').addEventListener('click', () => markSelectedValidity('invalid'));
+    $('pMarkValid').addEventListener('click', () => markSelectedValidity('valid'));
+    $('pShowInvalid').addEventListener('change', (e) => { pick.showInvalid = e.target.checked; pick.offset = 0; loadPick(); });
+    $('tabManual').addEventListener('click', () => setMode('manual'));
+    $('tabAuto').addEventListener('click', () => setMode('auto'));
+    $('pCategory').addEventListener('change', (e) => { pick.category = e.target.value; pick.offset = 0; loadPick(); });
+    $('pStatus').addEventListener('change', (e) => { pick.status = e.target.value; pick.offset = 0; loadPick(); });
+    $('pCols').addEventListener('change', (e) => { pick.cols = e.target.value; applyPickCols(); });
+    $('pPageSize').addEventListener('change', (e) => { pick.limit = parseInt(e.target.value, 10) || 60; pick.offset = 0; loadPick(); });
+    $('pSelPage').addEventListener('click', () => { pick.pageSamples.forEach((s) => pick.selected.add(s.sample_id)); renderPickGrid(); });
+    $('pClear').addEventListener('click', () => { pick.selected.clear(); renderPickGrid(); });
+    $('pPrev').addEventListener('click', () => { pick.offset = Math.max(0, pick.offset - pick.limit); loadPick(); });
+    $('pNext').addEventListener('click', () => { pick.offset += pick.limit; loadPick(); });
+
+    document.addEventListener('keydown', (e) => {
+      if (pick.mode !== 'manual' || $('manualPanel').hidden) return;
+      const tag = (e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault(); pick.pageSamples.forEach((s) => pick.selected.add(s.sample_id)); renderPickGrid();
+      } else if (e.key === 'Escape') { pick.selected.clear(); renderPickGrid(); }
+    });
+
+    (async function init() {
+      await loadStats();
+      await loadSnapshots();
+      await loadPickModels();
+      await loadPickCategories();
+      await loadPick();
+    })();
+  </script>
+</body>
+</html>

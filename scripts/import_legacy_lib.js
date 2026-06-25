@@ -384,7 +384,7 @@ function importLegacyPlatform(sourceArg, options = {}) {
   const sourceDataPath = path.join(sourcePlatformDir, 'gripper_eval_data.json');
   const targetDataPath = path.join(targetPlatformDir, 'gripper_eval_data.json');
   const sourceImagesDir = path.join(sourcePlatformDir, 'local_images');
-  const targetImagesDir = path.join(targetPlatformDir, 'local_images');
+  const targetImagesDir = path.join(path.dirname(targetPlatformDir), 'local_images');
 
   // 读取源数据和目标数据。如果目标数据不存在，就从空数据开始。
   const sourceData = readJson(sourceDataPath, { version: 1, records: {} });

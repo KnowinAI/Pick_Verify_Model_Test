@@ -1,7 +1,24 @@
 node_modules/
+.vscode/
+scripts.zip
+
+# 运行时日志与临时备份
 platform/*.log
 platform/server.*.log
 platform/*.import-backup-*.json
+platform/gripper_eval_data.json
+platform/gripper_eval_data*.json
 platform/gripper_eval_data.before-delete-vlm-failed-*.json
 platform/gripper_eval.html.bak_*
 platform/~$*
+
+# 本地图片（不入库）
+local_images/
+platform/local_images/
+testCollection/
+
+# eval_registry 运行时数据（保留 models.json / object_dictionary.json 作配置模板）
+eval_registry/_backups/
+eval_registry/samples/
+eval_registry/runs/
+eval_registry/bm/

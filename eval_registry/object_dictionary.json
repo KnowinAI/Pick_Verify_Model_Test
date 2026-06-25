@@ -1,0 +1,80 @@
+{
+  "_comment": "物品标签字典：按 object_category 给物体级属性默认值。标注页打开未标注样本时自动带入这些默认值，个别不符的样本可在页面直接改写后保存。字段取值需与 gripper_label.html 的 FIELD_DEFS 选项一致。",
+  "_version": "dict_v1",
+  "_object_level_fields": [
+    "object_name",
+    "transparency",
+    "reflectiveness",
+    "deformability",
+    "geometry_tags",
+    "material_tags"
+  ],
+  "categories": {
+    "BuildingBlocks": {
+      "object_name": "积木",
+      "transparency": "不透明",
+      "reflectiveness": "低反光",
+      "deformability": "刚性",
+      "geometry_tags": [
+        "块状",
+        "小物体"
+      ],
+      "material_tags": [
+        "塑料"
+      ]
+    },
+    "Container": {
+      "object_name": "容器",
+      "transparency": "不透明",
+      "reflectiveness": "中等反光",
+      "deformability": "刚性",
+      "geometry_tags": [
+        "空心/开口",
+        "圆柱/圆形"
+      ],
+      "material_tags": [
+        "塑料"
+      ]
+    },
+    "PhoneCover": {
+      "object_name": "手机壳",
+      "transparency": "不透明",
+      "reflectiveness": "中等反光",
+      "deformability": "可形变",
+      "geometry_tags": [
+        "薄片"
+      ],
+      "material_tags": [
+        "塑料"
+      ]
+    },
+    "PlushToy": {
+      "object_name": "毛绒玩具",
+      "transparency": "不透明",
+      "reflectiveness": "低反光",
+      "deformability": "柔性",
+      "geometry_tags": [
+        "不规则"
+      ],
+      "material_tags": [
+        "毛绒",
+        "布料"
+      ]
+    },
+    "SlenderItems": {
+      "object_name": "细长物",
+      "transparency": "不透明",
+      "reflectiveness": "中等反光",
+      "deformability": "刚性",
+      "geometry_tags": [
+        "细长"
+      ],
+      "material_tags": [
+        "塑料"
+      ]
+    },
+    "towel": {
+      "object_name": "毛巾"
+    }
+  }
+}

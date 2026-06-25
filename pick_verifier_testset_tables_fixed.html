@@ -1,0 +1,64 @@
+﻿<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<title>Pick Verifier 测试集标注表</title>
+<style>body{font-family:Microsoft YaHei,Arial,sans-serif;margin:24px;color:#17202a}h1{font-size:24px}h2{margin-top:28px}.sheet{overflow:auto;margin-bottom:28px}table{border-collapse:collapse;min-width:980px}th,td{border:1px solid #d9e2ec;padding:8px 10px;vertical-align:top;white-space:nowrap}th{background:#00a651;color:white;position:sticky;top:0}tr:nth-child(even) td{background:#f8fafc}</style>
+</head><body><h1>Pick Verifier 测试集标注表</h1><p>如果 Excel 打开异常，可以先用浏览器打开这个 HTML 版本查看内容。</p>
+<h2>填写说明</h2><div class="sheet"><table>
+<tr><th>说明项</th><th>内容</th></tr>
+<tr><td>推荐使用方式</td><td>这个文件分成三张表：物品标签字典、样本标注表、字段取值说明。</td></tr>
+<tr><td>物品标签字典</td><td>一行一个物品或背景元素，只记录物体固有属性，例如几何结构、透明度、反光程度、材质。</td></tr>
+<tr><td>样本标注表</td><td>一行一个cam0/cam1图片组，记录这一次抓取里的背景、夹取角度、夹取深度、空间关系和模型结果。</td></tr>
+<tr><td>关键原则</td><td>不要把“背景、夹取角度、夹取深度、夹爪与物体、夹爪与桌面、模型版本”固定到物品名称上，因为同一物体每次拍摄状态可能不同。</td></tr>
+<tr><td>正式BM筛选</td><td>建议只选择：样本有效性=valid，复核状态=approved，G/N标签明确为G或N的样本。</td></tr>
+<tr><td>cam0/cam1约定</td><td>cam1是评估图，参与人工标注、VLM和统计；cam0是参考图。</td></tr>
+<tr><td>防乱码</td><td>本文件由UTF-8源码直接生成xlsx，不经过PowerShell管道转码。</td></tr>
+</table></div>
+<h2>物品标签字典</h2><div class="sheet"><table>
+<tr><th>物品名称</th><th>物体大类</th><th>几何结构</th><th>透明度</th><th>反光程度</th><th>形变属性</th><th>材质</th><th>是否建议进入BM</th><th>备注</th></tr>
+<tr><td>手机（iPhone/Android）</td><td>Other</td><td>薄片/块状</td><td>不透明</td><td>高反光</td><td>刚性</td><td>金属/玻璃/塑料</td><td>是</td><td>屏幕反光明显，注意背景低对比和误识别</td></tr>
+<tr><td>手机壳（硬壳）</td><td>PhoneCover</td><td>薄片/空心开口</td><td>透明/半透明/不透明</td><td>中等反光</td><td>刚性</td><td>塑料</td><td>是</td><td>重点类别；同一物品可覆盖正夹/侧夹/斜夹</td></tr>
+<tr><td>平板电脑</td><td>Other</td><td>薄片</td><td>不透明</td><td>高反光</td><td>刚性</td><td>金属/玻璃</td><td>可选</td><td>尺寸较大，注意是否超出夹爪能力</td></tr>
+<tr><td>电脑鼠标</td><td>Other</td><td>块状/不规则</td><td>不透明</td><td>中等反光</td><td>刚性</td><td>塑料</td><td>是</td><td>形状容易造成侧夹、斜夹和浅夹</td></tr>
+<tr><td>U盘</td><td>Other</td><td>小物体/块状</td><td>不透明</td><td>中等反光</td><td>刚性</td><td>金属/塑料</td><td>是</td><td>小目标，注意遮挡、对焦和夹爪是否挡住主体</td></tr>
+<tr><td>充电头</td><td>Other</td><td>块状/小物体</td><td>不透明</td><td>低反光</td><td>刚性</td><td>塑料/金属</td><td>是</td><td>适合补充小块状刚性物体</td></tr>
+<tr><td>金属夹子</td><td>Other</td><td>细长/薄片</td><td>不透明</td><td>高反光</td><td>可形变</td><td>金属</td><td>是</td><td>反光+可形变，容易形成模型难例</td></tr>
+<tr><td>金属支架</td><td>Other</td><td>细长/不规则</td><td>不透明</td><td>高反光</td><td>刚性</td><td>金属</td><td>可选</td><td>结构复杂时可作为 hard case</td></tr>
+<tr><td>乐高积木</td><td>BuildingBlocks</td><td>块状/小物体</td><td>不透明</td><td>低反光</td><td>刚性</td><td>塑料</td><td>是</td><td>积木类主类别，可做基础稳定样本</td></tr>
+<tr><td>塑料盒</td><td>Container</td><td>空心开口/块状</td><td>半透明/不透明</td><td>中等反光</td><td>刚性</td><td>塑料</td><td>是</td><td>容器类，注意空心结构导致的边缘夹</td></tr>
+<tr><td>塑料收纳盒</td><td>Container</td><td>空心开口/块状</td><td>半透明/不透明</td><td>中等反光</td><td>刚性</td><td>塑料</td><td>是</td><td>容器类，尺寸变化可形成覆盖</td></tr>
+<tr><td>杯子（陶瓷）</td><td>Container</td><td>空心开口/圆柱</td><td>不透明</td><td>低反光</td><td>刚性</td><td>陶瓷</td><td>是</td><td>典型容器，注意杯口/杯壁的夹取状态</td></tr>
+<tr><td>玻璃杯</td><td>Container</td><td>空心开口/圆柱</td><td>透明</td><td>高反光</td><td>刚性</td><td>玻璃</td><td>是</td><td>透明+反光重点难例</td></tr>
+<tr><td>笔</td><td>SlenderItems</td><td>细长/小物体</td><td>不透明</td><td>中等反光</td><td>刚性</td><td>塑料/金属</td><td>是</td><td>细长类主类别，注意对准未接触和浅夹</td></tr>
+<tr><td>格子桌布</td><td>Background</td><td>纹理背景</td><td>不透明</td><td>低反光</td><td>柔性</td><td>布料</td><td>否</td><td>建议作为背景条件，不作为被抓物体进入BM</td></tr>
+<tr><td>印花塑料袋</td><td>Other/Background</td><td>薄片/不规则</td><td>半透明/不透明</td><td>中等反光</td><td>可形变</td><td>塑料</td><td>可选</td><td>可作为柔性物体，也可作为复杂背景干扰</td></tr>
+<tr><td>图案手机壳</td><td>PhoneCover</td><td>薄片/空心开口/纹理</td><td>不透明/半透明</td><td>中等反光</td><td>刚性</td><td>塑料</td><td>是</td><td>图案会干扰模型判断，可作为手机壳难例</td></tr>
+<tr><td>标有刻度的尺子</td><td>SlenderItems</td><td>细长/薄片/文字密集</td><td>透明/不透明</td><td>中等反光</td><td>刚性</td><td>塑料/金属</td><td>是</td><td>刻度和文字密集，容易形成视觉干扰</td></tr>
+<tr><td>条纹衣服</td><td>Background</td><td>纹理背景/柔性</td><td>不透明</td><td>低反光</td><td>柔性</td><td>布料</td><td>否</td><td>建议作为复杂背景条件</td></tr>
+<tr><td>标签贴纸（文字密集）</td><td>Other/Background</td><td>薄片/文字密集</td><td>不透明</td><td>低反光</td><td>可形变</td><td>纸质</td><td>可选</td><td>文字密集干扰，可少量进入难例池</td></tr>
+</table></div>
+<h2>样本标注表</h2><div class="sheet"><table>
+<tr><th>group_id</th><th>cam0_path</th><th>cam1_path</th><th>source_batch</th><th>物品名称</th><th>物体大类</th><th>G/N标签</th><th>细分抓取状态</th><th>样本有效性</th><th>背景</th><th>夹爪状态</th><th>夹爪与物体</th><th>夹爪与桌面</th><th>物体与桌面</th><th>夹取深度</th><th>夹取角度</th><th>几何结构</th><th>透明度</th><th>反光程度</th><th>形变属性</th><th>材质</th><th>base模型版本</th><th>base预测</th><th>当前模型版本</th><th>当前模型预测</th><th>候选类型</th><th>失败方向</th><th>复核状态</th><th>拒绝原因</th><th>备注</th></tr>
+<tr><td>capture_group_20260608025526_ck0xyg</td><td>realtime_cam0_20260608025526_ck0xyg.jpg</td><td>realtime_cam1_20260608025526_ck0xyg.jpg</td><td>testCollection/PhoneCover</td><td>手机壳（硬壳）</td><td>PhoneCover</td><td>G</td><td>已夹住</td><td>valid</td><td>干净</td><td>闭合</td><td>充分包围</td><td>离桌</td><td>离桌</td><td>中</td><td>正夹</td><td>薄片/空心开口</td><td>透明</td><td>中等反光</td><td>刚性</td><td>塑料</td><td>base_qwen3vl_4b</td><td>N</td><td>opt10_merged</td><td>G</td><td>model_improvement</td><td>none</td><td>pending</td><td></td><td>示例：base错、当前模型对，可作为提升样本候选</td></tr>
+<tr><td>capture_group_20260603112843_tqbd9a</td><td>realtime_cam0_20260603112843_tqbd9a.jpg</td><td>realtime_cam1_20260603112843_tqbd9a.jpg</td><td>testCollection/SlenderItems</td><td>笔</td><td>SlenderItems</td><td>N</td><td>闭合未夹住</td><td>valid</td><td>低对比</td><td>闭合</td><td>对准未接触</td><td>近桌未接触</td><td>在桌</td><td>浅</td><td>斜夹</td><td>细长/小物体</td><td>不透明</td><td>中等反光</td><td>刚性</td><td>塑料/金属</td><td>base_qwen3vl_4b</td><td>N</td><td>opt10_merged</td><td>G</td><td>model_failure</td><td>N_to_G</td><td>pending</td><td></td><td>示例：当前模型误判为抓住，进入失败样本候选</td></tr>
+<tr><td>capture_group_20260605041831_c4nzqn</td><td>realtime_cam0_20260605041831_c4nzqn.jpg</td><td>realtime_cam1_20260605041831_c4nzqn.jpg</td><td>testCollection/PlushToy</td><td>毛绒玩具</td><td>PlushToy</td><td>unknown</td><td>无法判断</td><td>unknown</td><td>复杂</td><td>不清楚</td><td>看不清</td><td>看不清</td><td>看不清</td><td>不清楚</td><td>不清楚</td><td>不规则</td><td>不透明</td><td>低反光</td><td>柔性</td><td>毛绒</td><td>base_qwen3vl_4b</td><td>failed</td><td>opt10_merged</td><td>failed</td><td>exclude</td><td>unknown</td><td>rejected</td><td>ambiguous</td><td>遮挡太重或无法判断，不进入正式BM</td></tr>
+</table></div>
+<h2>字段取值说明</h2><div class="sheet"><table>
+<tr><th>分类维度</th><th>字段名</th><th>推荐取值</th><th>是否硬配额</th><th>用法说明</th></tr>
+<tr><td>主标签</td><td>G/N标签</td><td>G / N / unknown / invalid</td><td>是</td><td>正式BM只统计G和N；unknown/invalid不进入正式BM</td></tr>
+<tr><td>细分抓取状态</td><td>细分抓取状态</td><td>已夹住 / 闭合未夹住 / 张开未夹住 / 无法判断 / 无效样本</td><td>是</td><td>用于把人工判断映射成G/N，同时保留失败类型</td></tr>
+<tr><td>样本有效性</td><td>样本有效性</td><td>valid / invalid / unknown</td><td>是</td><td>只有valid样本可进入冻结BM</td></tr>
+<tr><td>物体类别</td><td>物体大类</td><td>BuildingBlocks / Container / PhoneCover / PlushToy / SlenderItems / Other / Background</td><td>是</td><td>主类别建议做均衡抽样；Background一般不作为被抓物体</td></tr>
+<tr><td>背景</td><td>背景</td><td>干净 / 复杂 / 低对比 / 反光背景 / 杂乱 / 不清楚</td><td>软覆盖</td><td>用于解释背景干扰，不建议和物体类别交叉做硬配额</td></tr>
+<tr><td>夹爪状态</td><td>夹爪状态</td><td>张开 / 闭合 / 半闭合 / 不清楚</td><td>分析字段</td><td>只描述夹爪开合，不要混入是否夹住</td></tr>
+<tr><td>夹爪与物体</td><td>夹爪与物体</td><td>错位空抓 / 对准未接触 / 部分包围 / 充分包围 / 看不清</td><td>软覆盖</td><td>解释G/N判断和模型错误的关键空间关系</td></tr>
+<tr><td>夹爪与桌面</td><td>夹爪与桌面</td><td>离桌 / 近桌未接触 / 接触桌面 / 抵住桌面 / 隔物支撑 / 看不清</td><td>软覆盖</td><td>抵住桌面、隔物支撑容易造成误判</td></tr>
+<tr><td>物体与桌面</td><td>物体与桌面</td><td>在桌 / 半离桌 / 离桌 / 压桌 / 看不清</td><td>软覆盖</td><td>用于判断物体是否真的被夹起</td></tr>
+<tr><td>夹取深度</td><td>夹取深度</td><td>浅 / 中 / 深 / 未进入 / 不清楚</td><td>软覆盖</td><td>浅夹和边缘夹容易耦合，但不建议合并字段</td></tr>
+<tr><td>夹取角度</td><td>夹取角度</td><td>正夹 / 侧夹 / 斜夹 / 不清楚</td><td>软覆盖</td><td>只描述方向，不放“浅夹/边缘夹”</td></tr>
+<tr><td>几何结构</td><td>几何结构</td><td>空心开口 / 细长 / 块状 / 薄片 / 圆柱 / 不规则 / 小物体 / 大物体 / 纹理背景 / 文字密集</td><td>软覆盖</td><td>可多选，建议用“/”分隔</td></tr>
+<tr><td>物理属性</td><td>透明度</td><td>透明 / 半透明 / 不透明 / 不清楚</td><td>软覆盖</td><td>不要与反光程度混成一个字段</td></tr>
+<tr><td>物理属性</td><td>反光程度</td><td>低反光 / 中等反光 / 高反光 / 不清楚</td><td>软覆盖</td><td>不透明物体也可能高反光</td></tr>
+<tr><td>物理属性</td><td>形变属性</td><td>刚性 / 柔性 / 可形变 / 不清楚</td><td>软覆盖</td><td>软袋、毛绒、夹子等可重点观察</td></tr>
+<tr><td>模型结果</td><td>候选类型</td><td>model_improvement / model_failure / ordinary / exclude</td><td>是</td><td>model_improvement=base错当前对；model_failure=当前模型错</td></tr>
+<tr><td>复核</td><td>复核状态</td><td>pending / approved / rejected</td><td>是</td><td>只有approved样本进入最终冻结BM</td></tr>
+</table></div>
+</body></html>

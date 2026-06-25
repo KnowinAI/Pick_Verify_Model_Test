@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>样本池入池管理</title>
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --card: #ffffff;
+      --text: #1e293b;
+      --muted: #64748b;
+      --line: #e4e8f0;
+      --line-soft: #eef2f7;
+      --green: #00a651;
+      --green-dark: #087f45;
+      --blue: #2563eb;
+      --blue-dark: #1d4ed8;
+      --orange: #f97316;
+      --red: #dc2626;
+      --shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.06);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
+      line-height: 1.45;
+    }
+    .page { width: min(1200px, calc(100% - 24px)); margin: 0 auto; padding: 12px 0 40px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+    .topbar h1 { font-size: 19px; margin: 0; letter-spacing: -0.02em; }
+    .nav { display: flex; align-items: center; gap: 3px; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 3px; box-shadow: var(--shadow); }
+    .nav a { color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 600; padding: 5px 11px; border-radius: 7px; transition: background .12s, color .12s; }
+    .nav a:hover { background: var(--line-soft); color: var(--text); text-decoration: none; }
+    .nav a.active { background: var(--green); color: #fff; }
+    .nav a.navact { color: var(--blue); }
+    .nav a.navact:hover { background: #eff6ff; color: var(--blue-dark, #1d4ed8); }
+    .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 14px 0; }
+    .stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; box-shadow: var(--shadow); }
+    .stat .num { font-size: 22px; font-weight: 800; }
+    .stat .lab { color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 12px 0; }
+    button {
+      font-family: inherit; font-size: 13px; cursor: pointer; border-radius: 8px;
+      border: 1px solid var(--line); padding: 6px 12px; background: white; color: var(--text);
+      transition: all .12s ease;
+    }
+    button:hover { border-color: #cbd5e1; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    button.primary { background: var(--green); border-color: var(--green); color: white; font-weight: 700; }
+    button.primary:hover { background: var(--green-dark); border-color: var(--green-dark); }
+    button.ghost { background: #eef2f7; }
+    button.danger { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+    button.danger:hover:not(:disabled) { background: #fee2e2; border-color: #fca5a5; }
+    select, input[type=text] { transition: border-color .12s, box-shadow .12s; }
+    select:focus, input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
+    .new-cat { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+    .new-cat input {
+      font-family: inherit; font-size: 13px; padding: 6px 10px; border-radius: 8px;
+      border: 1px solid var(--line); width: 180px;
+    }
+    table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); }
+    th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--line); }
+    th { background: #ecfdf3; color: #064e3b; font-weight: 800; font-size: 12px; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tbody tr:hover td { background: #f8fafc; }
+    tr:last-child td { border-bottom: none; }
+    .pending-pos { color: var(--green-dark); font-weight: 800; }
+    .pending-zero { color: var(--muted); }
+    .anom { color: var(--orange); font-weight: 700; }
+    .row-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .msg { margin: 12px 0; padding: 8px 12px; border-radius: 8px; font-size: 13px; display: none; }
+    .msg.show { display: block; }
+    .msg.info { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+    .msg.ok { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+    .msg.err { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .hint { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #e7f8ee; color: var(--green-dark); }
+    .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid #cbd5e1; border-top-color: var(--green); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .log { margin-top: 14px; background: #0f172a; color: #e5e7eb; border-radius: 10px; padding: 12px 14px; font-family: Consolas, monospace; font-size: 12px; max-height: 240px; overflow: auto; white-space: pre-wrap; display: none; }
+    .log.show { display: block; }
+    .rt-panel { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; box-shadow: var(--shadow); margin: 14px 0; }
+    .rt-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+    .rt-head h2 { margin: 0; font-size: 16px; }
+    .rt-ctrls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .rt-cat { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+    .rt-cat select { font-family: inherit; font-size: 13px; padding: 6px 9px; border-radius: 8px; border: 1px solid var(--line); max-width: 170px; }
+    .rt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+    .rt-cam { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #0f172a; }
+    .rt-cam-title { display: flex; justify-content: space-between; padding: 6px 10px; font-size: 12px; color: #cbd5e1; background: #1e293b; }
+    .rt-cam img { width: 100%; display: block; aspect-ratio: 16 / 9; object-fit: contain; background: #111827; }
+    @media (max-width: 720px) { .rt-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="topbar">
+      <h1>样本池入池管理</h1>
+      <nav class="nav">
+        <a href="/pool" class="active">样本池</a>
+        <a href="/label">标注</a>
+        <a href="/bm">BM快照</a>
+        <a href="/runs">模型评测</a>
+        <a href="#" id="refreshLink" class="navact">⟳ 刷新</a>
+      </nav>
+    </div>
+    <p class="hint">把图片放进 <code id="tcDir">testCollection</code> 下对应物品类别的文件夹后，回到本页点“扫描刷新”，再对有新图的类别点“导入样本池”。导入只读原图，不会删除或移动任何图片。</p>
+
+    <section class="rt-panel">
+      <div class="rt-head">
+        <div>
+          <h2>实时采集</h2>
+          <p class="hint" style="margin:2px 0 0;">从实时相机抓取 cam0/cam1 一组画面，选好类别后“保存到样本池”即按共享组身份登记入池（cam1 参与评估，cam0 为参考）。来源由服务端 REALTIME_BASE_URLS 配置。</p>
+        </div>
+        <div class="rt-ctrls">
+          <label class="rt-cat" title="采集时选好类别，保存时同步登记进样本池并自动归类">类别
+            <select id="rtCategory"><option value="">未分类</option></select>
+          </label>
+          <button class="ghost" id="rtAddCatBtn" title="新增一个采集类别（写入样本池字典）">+ 新增类别</button>
+          <button class="ghost" id="rtRefreshBtn">刷新画面</button>
+          <button class="primary" id="rtSaveBtn" title="快捷键：空格键">保存到样本池</button>
+        </div>
+      </div>
+      <div class="rt-grid">
+        <div class="rt-cam">
+          <div class="rt-cam-title"><span>cam0 参考画面</span><span id="rtCam0Time">-</span></div>
+          <img id="rtImgCam0" alt="cam0 实时画面">
+        </div>
+        <div class="rt-cam">
+          <div class="rt-cam-title"><span>cam1 评估画面</span><span id="rtCam1Time">-</span></div>
+          <img id="rtImgCam1" alt="cam1 实时画面">
+        </div>
+      </div>
+    </section>
+
+    <div class="summary" id="summary"></div>
+
+    <div class="toolbar">
+      <button class="ghost" id="rescanBtn">扫描刷新</button>
+      <button class="ghost" id="previewAllBtn">预览全部待入池</button>
+      <button class="primary" id="ingestAllBtn">一键导入全部新图</button>
+      <div class="new-cat">
+        <input id="newCatInput" type="text" placeholder="新物品类别名称" />
+        <button id="createCatBtn">新建类别</button>
+      </div>
+    </div>
+
+    <div class="msg" id="msg"></div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>物品类别</th>
+          <th class="num">图片数</th>
+          <th class="num">配对组</th>
+          <th class="num">已在池</th>
+          <th class="num">待入池</th>
+          <th class="num">坏组</th>
+          <th class="num">操作</th>
+        </tr>
+      </thead>
+      <tbody id="rows">
+        <tr><td colspan="7" style="text-align:center;color:#64748b;">加载中…</td></tr>
+      </tbody>
+    </table>
+
+    <div class="log" id="log"></div>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let statusData = null;
+    let busy = false;
+
+    function showMsg(text, kind) {
+      const el = $('msg');
+      el.textContent = text;
+      el.className = 'msg show ' + (kind || 'info');
+    }
+    function hideMsg() { $('msg').className = 'msg'; }
+    function appendLog(text) {
+      const el = $('log');
+      el.classList.add('show');
+      el.textContent += text + '\n';
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function renderSummary(data) {
+      const cats = data.categories || [];
+      const totalPending = cats.reduce((s, c) => s + (c.pending || 0), 0);
+      const totalAnom = cats.reduce((s, c) => s + (c.anomalies || 0), 0);
+      $('summary').innerHTML = [
+        ['样本池总样本', data.total_samples ?? 0],
+        ['物品类别数', cats.length],
+        ['待入池新图(组)', totalPending],
+        ['坏组合计', totalAnom],
+      ].map(([lab, num]) => `<div class="stat"><div class="num">${num}</div><div class="lab">${lab}</div></div>`).join('');
+    }
+
+    function renderRows(data) {
+      const cats = data.categories || [];
+      if (!cats.length) {
+        $('rows').innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748b;">testCollection 下没有类别目录，先新建一个类别</td></tr>';
+        return;
+      }
+      $('rows').innerHTML = cats.map((c) => {
+        const pendingCell = c.pending > 0
+          ? `<span class="pending-pos">${c.pending}</span>`
+          : `<span class="pending-zero">0</span>`;
+        const anomCell = c.anomalies > 0 ? `<span class="anom">${c.anomalies}</span>` : '0';
+        const poolCount = (data.samples_per_category && data.samples_per_category[c.category]) || 0;
+        const disabled = c.pending > 0 ? '' : 'disabled';
+        return `<tr data-cat="${encodeURIComponent(c.category)}">
+          <td><strong>${escapeHtml(c.category)}</strong> <span class="badge">${poolCount} 在池</span></td>
+          <td class="num">${c.matched_files}</td>
+          <td class="num">${c.pairs}</td>
+          <td class="num">${c.already_in_pool}</td>
+          <td class="num">${pendingCell}</td>
+          <td class="num">${anomCell}</td>
+          <td class="num"><div class="row-actions">
+            <button class="ghost preview-btn" ${disabled}>预览</button>
+            <button class="primary ingest-btn" ${disabled}>导入样本池</button>
+            <button class="ghost danger del-bad-btn" ${c.anomalies > 0 ? '' : 'disabled'} title="永久删除该类别无法配对的坏组原始图片（删前会列出文件确认）">删除坏组</button>
+          </div></td>
+        </tr>`;
+      }).join('');
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    }
+
+    async function loadStatus() {
+      if (busy) return;
+      setBusy(true, '扫描中…');
+      try {
+        const res = await fetch('/api/pool/status');
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.message || '加载失败');
+        statusData = data;
+        if (data.testcollection_dir) $('tcDir').textContent = data.testcollection_dir;
+        renderSummary(data);
+        renderRows(data);
+        hideMsg();
+      } catch (error) {
+        showMsg('加载失败：' + error.message, 'err');
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    function setBusy(state, text) {
+      busy = state;
+      $('rescanBtn').disabled = state;
+      $('ingestAllBtn').disabled = state;
+      $('previewAllBtn').disabled = state;
+      $('createCatBtn').disabled = state;
+      document.querySelectorAll('.ingest-btn,.preview-btn,.del-bad-btn').forEach((b) => { b.disabled = state; });
+      if (state && text) showMsg((text || '处理中…'), 'info');
+    }
+
+    async function ingest(category, dryRun) {
+      const res = await fetch('/api/pool/ingest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(category ? { category, dry_run: dryRun } : { all: true, dry_run: dryRun }),
+      });
+      return res.json();
+    }
+
+    async function onIngestCategory(category, dryRun) {
+      if (busy) return;
+      setBusy(true, (dryRun ? '预览 ' : '导入 ') + category + '…');
+      try {
+        const data = await ingest(category, dryRun);
+        if (!data.ok) throw new Error(data.message || '操作失败');
+        const r = data.report;
+        const verb = dryRun ? '预览' : '已导入';
+        appendLog(`[${verb}] ${category}: 配对 ${r.pairs_found}，新增 ${r.new_samples_added}，已在池 ${r.already_in_pool}，内容重复 ${r.content_duplicates}，坏组 ${r.anomalies_total}`);
+        showMsg(`${verb} ${category}：新增 ${r.new_samples_added} 组，跳过已在池 ${r.already_in_pool} 组，内容重复 ${r.content_duplicates} 组`, dryRun ? 'info' : 'ok');
+      } catch (error) {
+        showMsg('操作失败：' + error.message, 'err');
+      } finally {
+        setBusy(false);
+        if (!dryRun) await loadStatus();
+      }
+    }
+
+    async function onIngestAll(dryRun) {
+      if (busy) return;
+      setBusy(true, dryRun ? '预览全部…' : '导入全部…');
+      try {
+        const data = await ingest(null, dryRun);
+        if (!data.ok) throw new Error(data.message || '操作失败');
+        const verb = dryRun ? '预览' : '已导入';
+        (data.results || []).forEach((item) => {
+          if (item.report) {
+            appendLog(`[${verb}] ${item.category}: 配对 ${item.report.pairs_found}，新增 ${item.report.new_samples_added}，已在池 ${item.report.already_in_pool}，内容重复 ${item.report.content_duplicates}`);
+          }
+        });
+        showMsg(`${verb}全部完成：合计新增 ${data.total_new_samples} 组`, dryRun ? 'info' : 'ok');
+      } catch (error) {
+        showMsg('操作失败：' + error.message, 'err');
+      } finally {
+        setBusy(false);
+        if (!dryRun) await loadStatus();
+      }
+    }
+
+    async function onCreateCategory() {
+      const name = $('newCatInput').value.trim();
+      if (!name) { showMsg('请输入新类别名称', 'err'); return; }
+      setBusy(true, '新建类别…');
+      try {
+        const res = await fetch('/api/pool/category', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ category: name }),
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.message || '新建失败');
+        $('newCatInput').value = '';
+        showMsg(`已新建类别目录：${data.dir}。现在可以把该物品的图片放进去，再点扫描刷新。`, 'ok');
+        await loadStatus();
+      } catch (error) {
+        showMsg('新建失败：' + error.message, 'err');
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    document.addEventListener('click', (e) => {
+      const tr = e.target.closest('tr[data-cat]');
+      if (tr && e.target.classList.contains('ingest-btn')) {
+        onIngestCategory(decodeURIComponent(tr.dataset.cat), false);
+      } else if (tr && e.target.classList.contains('preview-btn')) {
+        onIngestCategory(decodeURIComponent(tr.dataset.cat), true);
+      } else if (tr && e.target.classList.contains('del-bad-btn')) {
+        onDeleteBadGroups(decodeURIComponent(tr.dataset.cat));
+      }
+    });
+
+    // 删除某类别的坏组：先取文件清单让用户确认，再永久删除原图，并刷新。
+    async function onDeleteBadGroups(category) {
+      if (busy) return;
+      setBusy(true, '读取坏组清单 ' + category + '…');
+      let list;
+      try {
+        const res = await fetch('/api/pool/bad-groups?category=' + encodeURIComponent(category));
+        list = await res.json();
+        if (!list.ok) throw new Error(list.message || '读取失败');
+      } catch (error) {
+        showMsg('读取坏组失败：' + error.message, 'err');
+        setBusy(false);
+        return;
+      }
+      setBusy(false);
+      if (!list.file_count) { showMsg(`「${category}」没有坏组可删`, 'info'); return; }
+      const preview = list.groups
+        .map((g) => `· [${g.pair_status}] ${g.source_subdir || './'}：${g.files.map((f) => f.name).join('，')}`)
+        .slice(0, 30)
+        .join('\n');
+      const more = list.groups.length > 30 ? `\n…等共 ${list.group_count} 组` : '';
+      const ok = confirm(
+        `将永久删除「${category}」的坏组原始图片：\n` +
+        `共 ${list.group_count} 组、${list.file_count} 个文件。\n` +
+        `此操作不可恢复（会写一份删除报告到 eval_registry/samples/deleted_bad_groups/）。\n\n` +
+        preview + more + '\n\n确定删除吗？',
+      );
+      if (!ok) return;
+      setBusy(true, '删除坏组 ' + category + '…');
+      let okDeleted = false;
+      try {
+        const res = await fetch('/api/pool/bad-groups/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ category }),
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.message || '删除失败');
+        appendLog(`[删除坏组] ${category}: 删除 ${data.deleted_count} 个文件（${data.group_count} 组），失败 ${data.failed_count}，跳过 ${data.skipped_count}。报告 ${data.report}`);
+        showMsg(`已删除「${category}」坏组 ${data.deleted_count} 个文件`, 'ok');
+        okDeleted = true;
+      } catch (error) {
+        showMsg('删除坏组失败：' + error.message, 'err');
+      } finally {
+        setBusy(false);
+      }
+      if (okDeleted) await loadStatus();
+    }
+    $('rescanBtn').addEventListener('click', loadStatus);
+    $('refreshLink').addEventListener('click', (e) => { e.preventDefault(); loadStatus(); });
+    $('ingestAllBtn').addEventListener('click', () => onIngestAll(false));
+    $('previewAllBtn').addEventListener('click', () => onIngestAll(true));
+    $('createCatBtn').addEventListener('click', onCreateCategory);
+    $('newCatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') onCreateCategory(); });
+
+    // ===== 实时采集（复用 /api/realtime-proxy 预览 + /api/realtime/save 双写入池）=====
+    let rtRefreshSeq = 0;
+    function rtPlaceholder(camera, message) {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360"><rect width="640" height="360" fill="#111827"/><text x="50%" y="48%" text-anchor="middle" fill="#dbe4f3" font-size="22" font-family="Arial" font-weight="700">cam${camera} 实时画面未加载</text><text x="50%" y="58%" text-anchor="middle" fill="#94a3b8" font-size="15" font-family="Arial">${message}</text></svg>`;
+      return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    }
+    function rtRefreshCam(camera, seq) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        const url = `/api/realtime-proxy/frame?camera=${camera}&t=${Date.now()}`;
+        img.onload = () => {
+          if (seq !== rtRefreshSeq) return resolve(false);
+          const target = $(`rtImgCam${camera}`);
+          const stamp = $(`rtCam${camera}Time`);
+          if (target) { target.src = url; target.dataset.has = '1'; }
+          if (stamp) stamp.textContent = new Date().toLocaleTimeString('zh-CN');
+          resolve(true);
+        };
+        img.onerror = () => {
+          if (seq !== rtRefreshSeq) return resolve(false);
+          const target = $(`rtImgCam${camera}`);
+          if (target && target.dataset.has !== '1') target.src = rtPlaceholder(camera, '实时服务不可达');
+          resolve(false);
+        };
+        img.src = url;
+      });
+    }
+    function rtRefresh() {
+      const seq = ++rtRefreshSeq;
+      Promise.all([rtRefreshCam(0, seq), rtRefreshCam(1, seq)]);
+    }
+    async function rtLoadCategories(selectValue) {
+      const sel = $('rtCategory');
+      try {
+        const r = await fetch('/api/pool/dictionary');
+        const d = await r.json();
+        const cats = d && d.ok ? Object.keys(d.categories || {}) : [];
+        sel.innerHTML = ['<option value="">未分类</option>']
+          .concat(cats.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`)).join('');
+        if (selectValue && cats.includes(selectValue)) sel.value = selectValue;
+      } catch (e) { sel.innerHTML = '<option value="">未分类</option>'; }
+    }
+    async function rtAddCategory() {
+      const category = (window.prompt('新增类别标识（如 Scissors 或 剪刀，用于归类）：') || '').trim();
+      if (!category) return;
+      const objectName = (window.prompt('该类物体的中文名（可留空，如 剪刀）：') || '').trim();
+      try {
+        const r = await fetch('/api/pool/dictionary/category', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ category, object_name: objectName }),
+        });
+        const d = await r.json();
+        if (!r.ok || !d.ok) { showMsg('新增类别失败：' + (d.message || ''), 'err'); return; }
+        await rtLoadCategories(category);
+        showMsg(`已新增类别「${category}」，可直接采集；如需默认属性可在 object_dictionary.json 补全`, 'ok');
+      } catch (e) { showMsg(e.message || String(e), 'err'); }
+    }
+    async function rtSave() {
+      const btn = $('rtSaveBtn');
+      if (btn.disabled) return;
+      btn.disabled = true;
+      const oldText = btn.textContent;
+      btn.textContent = '保存中…';
+      try {
+        const category = $('rtCategory').value;
+        const r = await fetch('/api/realtime/save', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ object_category: category }),
+        });
+        const d = await r.json();
+        if (!r.ok || !d.ok) throw new Error(d.message || '保存失败');
+        const sync = d.pool_sync;
+        const note = sync && sync.status === 'added' ? '已登记入样本池'
+          : sync && sync.status === 'already_in_pool' ? '样本池已存在'
+          : sync && sync.status === 'content_duplicate' ? '样本池判为重复未登记'
+          : sync && sync.ok === false ? `入池跳过：${sync.message || ''}` : '已保存';
+        showMsg(`实时画面已保存（${note}）`, sync && sync.ok === false ? 'info' : 'ok');
+        await loadStatus();
+      } catch (e) {
+        showMsg('保存失败：' + (e.message || String(e)), 'err');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = oldText;
+      }
+    }
+    $('rtRefreshBtn').addEventListener('click', rtRefresh);
+    $('rtSaveBtn').addEventListener('click', rtSave);
+    // 快捷键：空格键保存到样本池。焦点在输入框/下拉框/按钮等可交互元素上时不拦截，避免误触和影响正常输入。
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== ' ' && e.code !== 'Space') return;
+      const el = document.activeElement;
+      const tag = el && el.tagName ? el.tagName.toLowerCase() : '';
+      if (tag === 'input' || tag === 'select' || tag === 'textarea' || tag === 'button' || tag === 'a' || (el && el.isContentEditable)) return;
+      e.preventDefault();
+      rtSave();
+    });
+    $('rtAddCatBtn').addEventListener('click', rtAddCategory);
+    rtLoadCategories();
+    rtRefresh();
+    setInterval(rtRefresh, 2000);
+
+    loadStatus();
+  </script>
+</body>
+</html>

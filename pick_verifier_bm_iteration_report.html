@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pick Verifier BM 构建与模型迭代报告</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --text: #17202a;
+      --muted: #5f6c7b;
+      --line: #d9e2ec;
+      --green: #00a651;
+      --green-dark: #087f45;
+      --blue: #2563eb;
+      --orange: #f97316;
+      --red: #dc2626;
+      --purple: #7c3aed;
+      --shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
+      line-height: 1.65;
+    }
+
+    .page {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 34px 0 56px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #063f2f 0%, #00a651 58%, #7ee787 100%);
+      color: white;
+      padding: 38px 42px;
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      margin-bottom: 26px;
+    }
+
+    .hero h1 {
+      margin: 0 0 10px;
+      font-size: 34px;
+      letter-spacing: -0.04em;
+    }
+
+    .hero p {
+      margin: 0;
+      max-width: 880px;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 17px;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.16);
+      border: 1px solid rgba(255, 255, 255, 0.26);
+      color: white;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .section {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 28px;
+      margin: 20px 0;
+      box-shadow: var(--shadow);
+    }
+
+    .section h2 {
+      margin: 0 0 16px;
+      font-size: 24px;
+      letter-spacing: -0.03em;
+    }
+
+    .section h3 {
+      margin: 22px 0 10px;
+      font-size: 18px;
+      color: #0f172a;
+    }
+
+    .lead {
+      font-size: 18px;
+      color: #253244;
+      margin: 0 0 12px;
+    }
+
+    .muted { color: var(--muted); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .card {
+      border: 1px solid var(--line);
+      background: #fbfdff;
+      border-radius: 18px;
+      padding: 18px;
+    }
+
+    .card h3 {
+      margin-top: 0;
+      display: flex;
+      gap: 9px;
+      align-items: center;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      background: #e7f8ee;
+      color: var(--green-dark);
+    }
+
+    .tag.blue { background: #dbeafe; color: #1d4ed8; }
+    .tag.orange { background: #ffedd5; color: #c2410c; }
+    .tag.red { background: #fee2e2; color: #b91c1c; }
+    .tag.purple { background: #ede9fe; color: #6d28d9; }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin: 18px 0 8px;
+    }
+
+    .step {
+      position: relative;
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px;
+      min-height: 108px;
+    }
+
+    .step strong {
+      display: block;
+      margin-bottom: 6px;
+      color: #0f172a;
+    }
+
+    .step span {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+      overflow: hidden;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: white;
+    }
+
+    th, td {
+      border: 1px solid var(--line);
+      padding: 11px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #ecfdf3;
+      color: #064e3b;
+      font-weight: 800;
+    }
+
+    tr:nth-child(even) td { background: #fbfdff; }
+
+    .quote {
+      border-left: 5px solid var(--green);
+      background: #f0fdf4;
+      padding: 14px 16px;
+      border-radius: 14px;
+      color: #14532d;
+      font-weight: 700;
+      margin: 16px 0;
+    }
+
+    .warn {
+      border-left: 5px solid var(--orange);
+      background: #fff7ed;
+      padding: 14px 16px;
+      border-radius: 14px;
+      color: #7c2d12;
+      margin: 16px 0;
+    }
+
+    .danger {
+      border-left: 5px solid var(--red);
+      background: #fef2f2;
+      padding: 14px 16px;
+      border-radius: 14px;
+      color: #7f1d1d;
+      margin: 16px 0;
+    }
+
+    .code {
+      background: #0f172a;
+      color: #e5e7eb;
+      border-radius: 16px;
+      padding: 16px 18px;
+      overflow: auto;
+      font-family: Consolas, "Microsoft YaHei", monospace;
+      font-size: 14px;
+      line-height: 1.65;
+      margin: 14px 0;
+    }
+
+    ul { padding-left: 22px; }
+    li { margin: 7px 0; }
+
+    .footer {
+      color: var(--muted);
+      text-align: center;
+      margin-top: 22px;
+      font-size: 13px;
+    }
+
+    @media (max-width: 920px) {
+      .grid, .grid.two, .flow { grid-template-columns: 1fr; }
+      .hero { padding: 28px; }
+      .hero h1 { font-size: 28px; }
+      .section { padding: 22px; }
+    }
+
+    @media print {
+      body { background: white; }
+      .page { width: 100%; padding: 0; }
+      .section, .hero { box-shadow: none; page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <h1>Pick Verifier BM 构建与模型迭代报告</h1>
+      <p>本报告说明 BM v1 稳定后应该怎么用、后续模型如何演进、测试集如何抽样，以及为什么不能把测试集当训练集直接使用。</p>
+      <div class="meta">
+        <span class="pill">面向：抓取结果 VLM 评估</span>
+        <span class="pill">核心：稳定 BM + 样本池迭代</span>
+        <span class="pill">建议：BM v1 冻结，BM v2 独立扩展</span>
+      </div>
+    </header>
+
+    <section class="section">
+      <h2>一、核心结论</h2>
+      <p class="lead">BM v1 不是用来训练模型的，而是用来做稳定评估、回归测试和历史模型对比。</p>
+      <div class="quote">BM v1 一旦冻结，就不要随便增删改样本。新数据、新难例、新类别应进入样本池或 BM v2，而不是直接塞回 BM v1。</div>
+      <div class="grid">
+        <div class="card">
+          <h3><span class="tag">稳定尺子</span>对比模型是否真的进步</h3>
+          <p>所有模型版本都跑同一批 BM v1，才能比较 base、opt1、opt2、opt10 的结果是否可比。</p>
+        </div>
+        <div class="card">
+          <h3><span class="tag blue">回归测试</span>防止新模型退化</h3>
+          <p>新模型在难例上提升时，可能把原来会的普通场景学坏。BM v1 用来检查基础能力是否退化。</p>
+        </div>
+        <div class="card">
+          <h3><span class="tag purple">汇报基准</span>让结果可信</h3>
+          <p>对同事或团队汇报时，可以说明所有模型都在同一版冻结 BM 上测试，结果更可信。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>二、BM v1 要不要永远不变？</h2>
+      <p>BM v1 不需要成为唯一测试集，但 BM v1 本身要保持稳定。</p>
+      <table>
+        <thead>
+          <tr>
+            <th>问题</th>
+            <th>建议做法</th>
+            <th>原因</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>BM v1 能不能继续用很多轮？</td>
+            <td>可以，建议长期保留。</td>
+            <td>它是基础能力和历史模型对比的稳定基准。</td>
+          </tr>
+          <tr>
+            <td>发现新难例要不要加入 BM v1？</td>
+            <td>不要直接加入，应进入样本池或 BM v2 候选池。</td>
+            <td>直接加入会破坏历史分数可比性。</td>
+          </tr>
+          <tr>
+            <td>发现 BM v1 标签错了怎么办？</td>
+            <td>可以修，但要升版本并记录原因，例如 BM_v1.1。</td>
+            <td>只允许修正客观错误，不允许为了模型表现调整 BM。</td>
+          </tr>
+          <tr>
+            <td>BM v1 样本能不能拿去训练？</td>
+            <td>原则上不要。</td>
+            <td>否则模型会“背题”，BM 分数会虚高。</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="danger">重要原则：不为模型表现修改 BM，只为修正客观错误修改 BM。</div>
+    </section>
+
+    <section class="section">
+      <h2>三、推荐的数据分层</h2>
+      <p>建议把数据分成四层，不要把所有图片都混成一个目录。</p>
+      <div class="grid two">
+        <div class="card">
+          <h3><span class="tag">样本池 Pool</span></h3>
+          <p>持续进入的新图片和历史图片。可以不断增加、标注、清洗。它是训练集、候选集和后续 BM 的来源。</p>
+        </div>
+        <div class="card">
+          <h3><span class="tag red">Failure Pool</span></h3>
+          <p>当前模型预测错误的样本集合。用于分析模型短板，并指导下一轮采样和训练。</p>
+        </div>
+        <div class="card">
+          <h3><span class="tag blue">BM v1 Basic</span></h3>
+          <p>基础稳定集，冻结后长期不变。主要用于基础能力、整体准确率和回归测试。</p>
+        </div>
+        <div class="card">
+          <h3><span class="tag orange">BM v2 Hard</span></h3>
+          <p>从新数据和失败样本中抽取的新冻结集。用于评估新增难例、新类别、新场景能力。</p>
+        </div>
+      </div>
+      <div class="code">样本池 pool：持续新增、持续标注、持续清洗
+BM_v1_basic：冻结基础集，用于长期对比
+failure_pool：当前模型错例池，用于指导下一轮训练
+BM_v2_hard：新冻结难例集，用于评估新能力</div>
+    </section>
+
+    <section class="section">
+      <h2>四、后续模型应该怎么演进？</h2>
+      <p>模型迭代不要围绕“调一次、看几张图”进行，而应该形成闭环。</p>
+      <div class="flow">
+        <div class="step"><strong>1. 固定 BM</strong><span>冻结 BM v1，确保人工标签和样本 ID 稳定。</span></div>
+        <div class="step"><strong>2. 跑当前模型</strong><span>base、opt10、opt11 都跑同一版 BM。</span></div>
+        <div class="step"><strong>3. 分析错例</strong><span>按物体类别、夹取关系、背景、深度等维度归因。</span></div>
+        <div class="step"><strong>4. 补充训练数据</strong><span>从样本池找相似样本，不直接拿 BM 训练。</span></div>
+        <div class="step"><strong>5. 再评估</strong><span>新模型再次跑 BM v1 和新增 BM，比较提升与退化。</span></div>
+      </div>
+      <h3>推荐闭环</h3>
+      <div class="code">BM v1 跑分 → 找错例 → 分析错误类型 → 从样本池找相似样本训练 → 训练新模型 → 再跑 BM v1 → 检查提升和退化</div>
+      <p>这个流程的关键是：BM 告诉你模型哪里错，但不要把 BM 直接喂给模型训练。</p>
+    </section>
+
+    <section class="section">
+      <h2>五、BM v1、BM v2 和 BM All 的关系</h2>
+      <p>推荐不要把所有样本都揉成一个总分，而是分开看基础能力和难例能力。</p>
+      <table>
+        <thead>
+          <tr>
+            <th>集合</th>
+            <th>定位</th>
+            <th>是否冻结</th>
+            <th>主要用途</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>BM_v1_basic</td>
+            <td>基础稳定集</td>
+            <td>冻结</td>
+            <td>长期回归测试、基础能力对比</td>
+          </tr>
+          <tr>
+            <td>BM_v2_hard</td>
+            <td>新增难例集</td>
+            <td>冻结</td>
+            <td>评估模型对新难例、新类别、新场景的能力</td>
+          </tr>
+          <tr>
+            <td>BM_all</td>
+            <td>综合报告集</td>
+            <td>由多个冻结 BM 汇总</td>
+            <td>对外给一个综合结果，但内部仍要看分项</td>
+          </tr>
+        </tbody>
+      </table>
+      <h3>示例报告口径</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>模型版本</th>
+            <th>BM v1 基础集</th>
+            <th>BM v2 难例集</th>
+            <th>综合结果</th>
+            <th>解读</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>base</td>
+            <td>78%</td>
+            <td>52%</td>
+            <td>68%</td>
+            <td>基础可用，难例较弱。</td>
+          </tr>
+          <tr>
+            <td>opt10</td>
+            <td>86%</td>
+            <td>61%</td>
+            <td>76%</td>
+            <td>基础明显提升，难例略有提升。</td>
+          </tr>
+          <tr>
+            <td>opt11</td>
+            <td>84%</td>
+            <td>70%</td>
+            <td>78%</td>
+            <td>难例提升明显，但基础集略有回退，需要看是否可接受。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>六、测试集应该怎么抽？</h2>
+      <p>抽样建议分三层：主标签硬平衡、物体类别硬平衡、难例标签软覆盖。</p>
+      <h3>第一层：G/N 主标签硬平衡</h3>
+      <p>正式 BM 里不要全是抓住，也不要全是没抓住。比如 BM v1 做 300 张，可以设置：</p>
+      <div class="code">G：150 张
+N：150 张</div>
+
+      <h3>第二层：物体类别硬平衡</h3>
+      <p>如果当前主要物体类别是 5 类，可以按每类固定数量抽取：</p>
+      <table>
+        <thead>
+          <tr>
+            <th>物体类别</th>
+            <th>总数</th>
+            <th>G</th>
+            <th>N</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>BuildingBlocks</td><td>60</td><td>30</td><td>30</td></tr>
+          <tr><td>Container</td><td>60</td><td>30</td><td>30</td></tr>
+          <tr><td>PhoneCover</td><td>60</td><td>30</td><td>30</td></tr>
+          <tr><td>PlushToy</td><td>60</td><td>30</td><td>30</td></tr>
+          <tr><td>SlenderItems</td><td>60</td><td>30</td><td>30</td></tr>
+        </tbody>
+      </table>
+
+      <h3>第三层：难例标签软覆盖</h3>
+      <p>下面这些维度不要全部做硬组合，否则组合会爆炸。建议只要求覆盖到一定数量。</p>
+      <table>
+        <thead>
+          <tr>
+            <th>维度</th>
+            <th>建议覆盖要求</th>
+            <th>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>透明/半透明</td><td>不少于 30 张</td><td>透明手机壳、玻璃杯等容易造成误判。</td></tr>
+          <tr><td>高反光</td><td>不少于 30 张</td><td>屏幕、玻璃、金属物体可作为重点覆盖。</td></tr>
+          <tr><td>浅夹</td><td>不少于 40 张</td><td>浅夹与边缘接触常耦合，是模型难点。</td></tr>
+          <tr><td>夹爪近桌/抵桌</td><td>不少于 30 张</td><td>容易把桌面支撑误判为抓住。</td></tr>
+          <tr><td>复杂背景/低对比</td><td>不少于 40 张</td><td>纹理桌布、文字密集、背景杂乱都可能干扰。</td></tr>
+          <tr><td>细长物体</td><td>不少于 50 张</td><td>筷子、笔、尺子等需要重点看对准未接触和浅夹。</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>七、BM v1 和 BM v2 的抽样定位</h2>
+      <div class="grid two">
+        <div class="card">
+          <h3><span class="tag blue">BM v1</span>基础稳定集</h3>
+          <ul>
+            <li>目标不是最难，而是可靠、稳定、可复现。</li>
+            <li>覆盖主要物体类别。</li>
+            <li>G/N 尽量平衡。</li>
+            <li>人工标签明确。</li>
+            <li>不要放太多极端模糊、严重遮挡、无法判断样本。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3><span class="tag orange">BM v2</span>新增难例集</h3>
+          <ul>
+            <li>围绕当前模型错得多的场景抽。</li>
+            <li>可包含透明、反光、浅夹、近桌、复杂背景等难例。</li>
+            <li>建议从 failure_pool 和新样本中抽。</li>
+            <li>不要替代 BM v1，而是和 BM v1 一起看。</li>
+          </ul>
+        </div>
+      </div>
+      <h3>BM v2 示例配比</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>来源</th>
+            <th>数量示例</th>
+            <th>目的</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>模型失败样本</td><td>100 张</td><td>覆盖当前模型真实短板。</td></tr>
+          <tr><td>新增难例样本</td><td>70 张</td><td>覆盖新物体、新背景、新夹取形态。</td></tr>
+          <tr><td>普通稳定样本</td><td>30 张</td><td>防止 BM v2 过于极端，保留少量正常场景。</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>八、标注表结构建议</h2>
+      <p>无论是否拆物品字典，核心一定是样本级标注表：一行对应一组 cam0/cam1 样本。</p>
+      <div class="code">样本ID
+cam0路径
+cam1路径
+来源批次
+物品名称
+物体大类
+G/N标签
+细分抓取状态
+样本有效性
+背景
+夹爪状态
+夹爪与物体关系
+夹爪与桌面关系
+物体与桌面关系
+夹取深度
+夹取角度
+几何结构
+透明度
+反光程度
+形变属性
+材质
+模型版本
+模型预测
+是否正确
+候选类型
+复核状态
+备注</div>
+      <div class="warn">cam1 是评估图，参与人工标注、VLM 和统计；cam0 是参考图。最终 BM 要以稳定的样本 ID 和 cam0/cam1 组对为单位。</div>
+    </section>
+
+    <section class="section">
+      <h2>九、推荐执行方案</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>阶段</th>
+            <th>要做什么</th>
+            <th>产出</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>阶段 1：整理样本池</td>
+            <td>统一 cam0/cam1 组对、生成样本 ID、去除坏组。</td>
+            <td>pool manifest、样本标注总表。</td>
+          </tr>
+          <tr>
+            <td>阶段 2：人工标注</td>
+            <td>标 G/N、细分抓取状态、空间关系、背景、有效性。</td>
+            <td>带人工真值的样本池。</td>
+          </tr>
+          <tr>
+            <td>阶段 3：冻结 BM v1</td>
+            <td>按 G/N 和物体类别硬平衡，按难例标签软覆盖抽样。</td>
+            <td>BM_v1_basic。</td>
+          </tr>
+          <tr>
+            <td>阶段 4：模型评估</td>
+            <td>base 和当前模型都跑 BM v1，记录预测和错误方向。</td>
+            <td>模型对比报告、failure_pool。</td>
+          </tr>
+          <tr>
+            <td>阶段 5：训练迭代</td>
+            <td>根据错例类型从样本池补充训练数据，训练新模型。</td>
+            <td>opt 新版本模型。</td>
+          </tr>
+          <tr>
+            <td>阶段 6：新增 BM</td>
+            <td>积累新难例后冻结 BM v2，与 BM v1 一起测试。</td>
+            <td>BM_v2_hard、BM_all 综合报告。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>十、最终建议</h2>
+      <p class="lead">当前最合理的策略是：先做一个可靠的 BM v1，不追求一次性覆盖所有极端场景；后续用 failure_pool 和 BM v2 逐步推进难例能力。</p>
+      <div class="quote">一句话总结：BM v1 负责“稳定比较”，failure_pool 负责“发现问题”，训练集负责“解决问题”，BM v2 负责“验证新问题是否解决”。</div>
+      <ul>
+        <li>BM v1 冻结后不要随便改，作为基础能力和回归测试基准。</li>
+        <li>模型错例不要直接拿 BM 训练，优先从样本池找相似样本训练。</li>
+        <li>新难例不要塞回 BM v1，应进入 BM v2 或后续版本。</li>
+        <li>每次模型报告同时看 BM v1、BM v2 和综合结果，不只看一个总分。</li>
+        <li>测试集抽样采用：G/N 硬平衡、物体类别硬平衡、难例标签软覆盖。</li>
+      </ul>
+    </section>
+
+    <p class="footer">生成文件：pick_verifier_bm_iteration_report.html ｜ 建议用浏览器或 Edge/Chrome 打开，避免 CSV/Excel 编码问题。</p>
+  </main>
+</body>
+</html>
