@@ -2778,6 +2778,16 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  // 模型评测：停止一次正在运行的 run（已跑结果保留并落盘）。
+  if (req.method === 'POST' && url.pathname === '/api/run/cancel') {
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const result = modelRun.cancelRun(body.run_id || '');
+      sendJson(res, result.ok ? 200 : 400, result);
+    } catch (error) { sendJson(res, 500, { ok: false, message: error.message || String(error) }); }
+    return;
+  }
+
   // 模型评测：run 进度。
   if (req.method === 'GET' && url.pathname === '/api/run/status') {
     try {
@@ -2808,6 +2818,16 @@ async function handleApi(req, res, url) {
     try {
       const body = JSON.parse((await readBody(req)) || '{}');
       const result = modelRun.deleteRun(body.run_id || '');
+      sendJson(res, result.ok ? 200 : 400, result);
+    } catch (error) { sendJson(res, 500, { ok: false, message: error.message || String(error) }); }
+    return;
+  }
+
+  // 模型评测：只重跑本次 run 里失败/无法识别的样本，结果合并回原 run。
+  if (req.method === 'POST' && url.pathname === '/api/run/retry') {
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const result = modelRun.retryRun(body.run_id || '');
       sendJson(res, result.ok ? 200 : 400, result);
     } catch (error) { sendJson(res, 500, { ok: false, message: error.message || String(error) }); }
     return;

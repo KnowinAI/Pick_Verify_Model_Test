@@ -1,12 +1,22 @@
 {
-  "_comment": "模型注册表：平台直接调这些 VLM 接口对 BM 快照跑预测。新增模型版本时往 models 数组里加一项即可。key 要唯一。prompt 留空则用默认 G/N 提示词。api_key_env 指定从哪个环境变量取 Bearer Token（可留空）。",
+  "_comment": "模型注册表：平台直接调这些 VLM 接口对样本/快照跑预测。标注页「模型版本」下拉与 /api/pool/vlm 都读这里，可在多个模型间切换。新增模型版本时往 models 数组里加一项即可。key 要唯一。数组第一项为默认选中项。prompt 留空则用默认 G/N 提示词。api_key_env 指定从哪个环境变量取 Bearer Token（可留空）。",
   "_version": "models_v1",
   "models": [
     {
-      "key": "pick_verifier_1200_merged",
-      "label": "Pick Verifier 1200 (当前线上)",
-      "endpoint": "http://127.0.0.1:5087/v1/chat/completions",
-      "model": "pick_verifier_1200_merged",
+      "key": "qwen3_4b_vl_instruct",
+      "label": "qwen3-4b-vl-instruct（基座）",
+      "endpoint": "http://101.132.143.105:5087/pick_verifier_0/v1/chat/completions",
+      "model": "qwen3-4b-vl-instruct",
+      "prompt_version": "gripper_gn_binary_v1",
+      "prompt": "",
+      "api_key_env": "VLM_API_KEY",
+      "send_cam0": false
+    },
+    {
+      "key": "pick_verifier_1",
+      "label": "训练模型 (pick_verifier_1)",
+      "endpoint": "http://101.132.143.105:5087/pick_verifier_1/v1/chat/completions",
+      "model": "pick_verifier_1",
       "prompt_version": "gripper_gn_binary_v1",
       "prompt": "",
       "api_key_env": "VLM_API_KEY",

@@ -163,6 +163,7 @@
         <div class="hint">平台会直接调该模型的 VLM 接口，对快照里每张 cam1 评估图预测 G/N，落库后算夹住/没夹住准召率。</div>
         <div class="saverow">
           <button class="primary" id="startBtn">开始运行</button>
+          <button class="danger" id="stopBtn" hidden title="停止当前评测，已跑结果会保留并入库">停止</button>
           <span class="msg" id="startMsg"></span>
         </div>
         <div id="progress" hidden>
@@ -237,6 +238,7 @@
     }
 
     let pollTimer = null;
+    let currentRunId = null;
     async function startRun() {
       const bmId = $('bmSel').value;
       const modelKey = $('modelSel').value;
@@ -249,9 +251,30 @@
       });
       const data = await r.json();
       if (!data.ok) { $('startBtn').disabled = false; setMsg(data.message || '启动失败', true); return; }
+      currentRunId = data.run_id;
       setMsg('运行中…', false);
       $('progress').hidden = false;
+      const stop = $('stopBtn');
+      if (stop) { stop.hidden = false; stop.disabled = false; stop.textContent = '停止'; }
       pollRun(data.run_id);
+    }
+
+    async function cancelCurrentRun() {
+      if (!currentRunId) return;
+      const stop = $('stopBtn');
+      if (stop) { stop.disabled = true; stop.textContent = '停止中…'; }
+      try {
+        const r = await fetch('/api/run/cancel', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ run_id: currentRunId }),
+        });
+        const d = await r.json();
+        if (!r.ok || !d.ok) throw new Error(d.message || `HTTP ${r.status}`);
+        setMsg('已请求停止，正在收尾当前样本…', false);
+      } catch (e) {
+        if (stop) { stop.disabled = false; stop.textContent = '停止'; }
+        setMsg('停止失败：' + (e.message || e), true);
+      }
     }
 
     function pollRun(runId) {
@@ -264,10 +287,14 @@
         const p = j.total ? Math.round((j.done || j.total) / j.total * 100) : 0;
         $('barFill').style.width = p + '%';
         $('progressText').textContent = `${j.message || ''}（${j.done || j.total}/${j.total}）`;
-        if (j.status === 'completed' || j.status === 'failed') {
+        if (j.status === 'completed' || j.status === 'failed' || j.status === 'cancelled') {
           clearInterval(pollTimer); pollTimer = null;
+          currentRunId = null;
           $('startBtn').disabled = false;
-          setMsg(j.status === 'completed' ? '运行完成' : (j.message || '运行失败'), j.status !== 'completed');
+          const stop = $('stopBtn');
+          if (stop) { stop.hidden = true; stop.disabled = false; stop.textContent = '停止'; }
+          const msg = j.status === 'completed' ? '运行完成' : (j.message || (j.status === 'cancelled' ? '已停止' : '运行失败'));
+          setMsg(msg, j.status === 'failed');
           loadRuns();
         }
       }, 1500);
@@ -352,7 +379,8 @@
           <button data-run="${run.run_id}" data-filter="all">查看全部</button>
           <button onclick="toggleByCat('${run.run_id}',this)">按类别指标</button>
           <button onclick="exportRunCsv('${run.run_id}')" title="导出本次快照评测的逐样本明细">导出CSV</button>
-          <button onclick="exportRunJson('${run.run_id}')" title="导出本次 run 的统计与指标">导出统计JSON</button>` : ''}
+          <button onclick="exportRunJson('${run.run_id}')" title="导出本次 run 的统计与指标">导出统计JSON</button>
+          ${run.failed ? `<button data-run-retry="${run.run_id}" title="只重跑本次失败/无法识别（多为网络抖动 fetch failed）的样本，结果合并回本 run">重跑失败 ${run.failed}</button>` : ''}` : ''}
           <button class="danger" data-run-del="${run.run_id}" title="删除本次 run 记录（不动原图、标注和 BM 快照）">删除</button>
         </div>
         <div id="cat_${cssId(run.run_id)}"></div>
@@ -375,6 +403,26 @@
         await loadRuns();
       } catch (e) {
         alert('删除失败：' + (e.message || e));
+      }
+    }
+
+    async function retryRunRecord(runId) {
+      if (!runId) return;
+      if (!confirm(`只重跑本次「失败/无法识别」的样本？\n${runId}\n\n会把新结果合并回这次 run（覆盖 predictions 与指标），不影响原图、标注和 BM 快照。`)) return;
+      try {
+        const r = await fetch('/api/run/retry', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ run_id: runId }),
+        });
+        const d = await r.json();
+        if (!r.ok || !d.ok) throw new Error(d.message || `HTTP ${r.status}`);
+        delete detailCache[runId];
+        setMsg(`开始重跑 ${d.retry_count} 张失败样本…`, false);
+        $('progress').hidden = false;
+        pollRun(runId);
+      } catch (e) {
+        alert('重跑失败：' + (e.message || e));
       }
     }
 
@@ -597,6 +645,11 @@
       const delBtn = event.target.closest('button[data-run-del]');
       if (delBtn) {
         deleteRunRecord(delBtn.dataset.runDel);
+        return;
+      }
+      const retryBtn = event.target.closest('button[data-run-retry]');
+      if (retryBtn) {
+        retryRunRecord(retryBtn.dataset.runRetry);
         return;
       }
       const chip = event.target.closest('.flip-chip');
@@ -830,6 +883,7 @@
     }
 
     $('startBtn').addEventListener('click', startRun);
+    $('stopBtn').addEventListener('click', cancelCurrentRun);
     $('cmpBtn').addEventListener('click', doCompare);
 
     (async function init() {

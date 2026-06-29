@@ -233,6 +233,7 @@ function startRun(opts = {}) {
     const stream = fs.createWriteStream(predPath, { flags: 'a' });
     const predictions = [];
     for (const s of samples) {
+      if (job.cancelRequested) { job.cancelled = true; break; }
       job.current = s.sample_id;
       const { raw, pred, error } = await callModel(modelCfg, s.sample_id);
       const rec = {
@@ -254,18 +255,26 @@ function startRun(opts = {}) {
     }
     stream.end();
 
+    const cancelled = !!job.cancelled;
     const metrics = computeAllMetrics(predictions);
     const meta = {
       run_id: runId, bm_id: bmId, model_key: modelKey,
       model: modelCfg.model, endpoint: modelCfg.endpoint, prompt_version: modelCfg.prompt_version || '',
       created_at: job.started_at, finished_at: nowIso(),
-      total: samples.length, success: job.success, failed: job.failed,
+      // 中途停止时只统计已实际跑过的样本；planned_total 记录原计划张数。
+      total: cancelled ? predictions.length : samples.length,
+      planned_total: samples.length,
+      success: job.success, failed: job.failed,
+      cancelled,
+      status: cancelled ? 'cancelled' : 'completed',
       metrics,
     };
     fs.writeFileSync(path.join(dir, 'meta.json'), JSON.stringify(meta, null, 2), 'utf8');
-    job.status = 'completed';
+    job.status = cancelled ? 'cancelled' : 'completed';
     job.finished_at = meta.finished_at;
-    job.message = `完成：${job.success} 成功 / ${job.failed} 失败`;
+    job.message = cancelled
+      ? `已停止：已跑 ${predictions.length}/${samples.length}（成功 ${job.success} / 失败 ${job.failed}）`
+      : `完成：${job.success} 成功 / ${job.failed} 失败`;
     job.metrics = metrics;
   })().catch((error) => {
     job.status = 'failed';
@@ -276,6 +285,103 @@ function startRun(opts = {}) {
   return { ok: true, run_id: runId };
 }
 
+// 只重跑某次 run 里「失败 / 无法识别」的样本，把新结果合并回原 run。
+// 失败定义：有 error，或 pred_label === 'Unknown'（多为调用时网络抖动 fetch failed）。
+// 只覆盖这些样本的预测，其余已正确的结果原样保留；完成后重写 predictions.jsonl 与 meta.json。
+// 不动原图、标注与 BM 快照。
+function retryRun(runId) {
+  const id = sanitize(runId);
+  if (!id) return { ok: false, message: '缺少 run_id' };
+  const dir = path.join(RUNS_DIR, id);
+  const metaPath = path.join(dir, 'meta.json');
+  const predPath = path.join(dir, 'predictions.jsonl');
+  if (!fs.existsSync(metaPath) || !fs.existsSync(predPath)) {
+    return { ok: false, message: 'run 不存在或未完成' };
+  }
+  const existing = runJobs.get(id);
+  if (existing && existing.status === 'running') {
+    return { ok: false, message: 'run 正在运行/重跑中，请稍后再试' };
+  }
+
+  const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+  const predictions = fs.readFileSync(predPath, 'utf8')
+    .split(/\r?\n/).filter(Boolean).map((l) => JSON.parse(l));
+  const retryIdx = [];
+  predictions.forEach((p, i) => {
+    if ((p.error && String(p.error).length) || p.pred_label === 'Unknown') retryIdx.push(i);
+  });
+  if (!retryIdx.length) return { ok: false, message: '本次 run 没有失败/无法识别的样本' };
+
+  // 复原当时用的模型配置：以注册表为基础，用 meta 里的 endpoint/model 覆盖，保证与原 run 一致。
+  const base = getModel(meta.model_key) || {};
+  const modelCfg = Object.assign({}, base, {
+    model: meta.model || base.model,
+    endpoint: meta.endpoint || base.endpoint,
+    prompt_version: meta.prompt_version || base.prompt_version,
+  });
+  if (!modelCfg.endpoint) {
+    return { ok: false, message: '无法确定模型 endpoint（models.json 缺该模型且 meta 无 endpoint）' };
+  }
+
+  const job = {
+    run_id: id, bm_id: meta.bm_id, model_key: meta.model_key, model: modelCfg.model,
+    status: 'running', total: retryIdx.length, done: 0, success: 0, failed: 0,
+    started_at: nowIso(), updated_at: nowIso(), message: '重跑失败样本中', current: '', retry: true,
+  };
+  runJobs.set(id, job);
+
+  (async () => {
+    for (const i of retryIdx) {
+      const p = predictions[i];
+      job.current = p.sample_id;
+      const { raw, pred, error } = await callModel(modelCfg, p.sample_id);
+      predictions[i] = Object.assign({}, p, {
+        pred_label: pred,
+        raw_output: raw,
+        correct: (p.gt_label === 'G' || p.gt_label === 'N') ? (p.gt_label === pred) : null,
+        error: error || '',
+      });
+      job.done += 1;
+      if (error || pred === 'Unknown') job.failed += 1; else job.success += 1;
+      job.updated_at = nowIso();
+      job.message = `重跑 ${job.done}/${job.total}`;
+    }
+
+    fs.writeFileSync(predPath, predictions.map((p) => JSON.stringify(p)).join('\n') + '\n', 'utf8');
+
+    const totalFailed = predictions.filter((p) => p.error && String(p.error).length).length;
+    const totalSuccess = predictions.length - totalFailed;
+    const metrics = computeAllMetrics(predictions);
+    const newMeta = Object.assign({}, meta, {
+      total: predictions.length, success: totalSuccess, failed: totalFailed,
+      metrics, retried_at: nowIso(),
+    });
+    fs.writeFileSync(metaPath, JSON.stringify(newMeta, null, 2), 'utf8');
+
+    job.status = 'completed';
+    job.finished_at = nowIso();
+    job.message = `重跑完成：本次成功 ${job.success} / 仍失败 ${job.failed}（剩余失败 ${totalFailed}）`;
+    job.metrics = metrics;
+  })().catch((error) => {
+    job.status = 'failed';
+    job.message = `重跑出错：${error.message || error}`;
+    job.updated_at = nowIso();
+  });
+
+  return { ok: true, run_id: id, retry_count: retryIdx.length };
+}
+
+// 请求停止一次正在运行的 run：只置标志位，循环会在下一张前自然收尾并落盘。
+function cancelRun(runId) {
+  const id = sanitize(runId);
+  const job = runJobs.get(id);
+  if (!job) return { ok: false, message: 'run 不存在或已结束' };
+  if (job.status !== 'running') return { ok: false, message: `run 当前状态：${job.status}，无法停止` };
+  job.cancelRequested = true;
+  job.message = '正在停止…';
+  return { ok: true, run_id: id };
+}
+
 function getRunStatus(runId) {
   const job = runJobs.get(runId);
   if (job) return { ok: true, job };
@@ -283,7 +389,7 @@ function getRunStatus(runId) {
   const metaPath = path.join(RUNS_DIR, sanitize(runId), 'meta.json');
   if (fs.existsSync(metaPath)) {
     const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
-    return { ok: true, job: { ...meta, status: 'completed', done: meta.total } };
+    return { ok: true, job: { ...meta, status: meta.status || 'completed', done: meta.total } };
   }
   return { ok: false, message: 'run 不存在' };
 }
@@ -348,6 +454,8 @@ module.exports = {
   effectiveModelKey,
   callModel,
   startRun,
+  retryRun,
+  cancelRun,
   getRunStatus,
   listRuns,
   getRunDetail,

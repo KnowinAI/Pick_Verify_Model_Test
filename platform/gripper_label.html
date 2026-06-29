@@ -229,8 +229,6 @@
             <span id="batchVlmMsg" class="bb-count"></span>
           </div>
 
-          <div class="bb-group" id="customEpMount"></div>
-
           <span class="spacer"></span>
 
           <div class="bb-group">
@@ -259,7 +257,6 @@
   </div>
 
   <script src="/annotation_schema.js"></script>
-  <script src="/model_endpoint_ui.js"></script>
   <script>
     // 标注表单字段 = 单一数据源（annotation_schema.js）里的非系统字段。
     // dict:true 表示物体级属性，可由物品字典按类别自动带默认值。
@@ -338,12 +335,7 @@
     }
 
     function vlmRequestBody(extra) {
-      return Object.assign({ model_key: state.modelKey }, ModelEndpointUi.getPayload(), extra || {});
-    }
-
-    function defaultModelEndpoint() {
-      const m = state.models.find((x) => x.key === state.modelKey);
-      return m && m.endpoint ? ModelEndpointUi.parseEndpointUrl(m.endpoint) : null;
+      return Object.assign({ model_key: state.modelKey }, extra || {});
     }
 
     const $ = (id) => document.getElementById(id);
@@ -1136,11 +1128,6 @@
       await loadModels();
       await loadCategories();
       await loadDictionary();
-      const epMount = $('customEpMount');
-      if (epMount && window.ModelEndpointUi) {
-        epMount.innerHTML = ModelEndpointUi.endpointUiHtml(true);
-        ModelEndpointUi.bind(epMount, { defaultEndpoint: defaultModelEndpoint });
-      }
       await loadSamples();
     })();
   </script>
