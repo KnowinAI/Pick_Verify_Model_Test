@@ -118,6 +118,11 @@
     .det-toolbar select { width: auto; padding: 2px 6px; font-size: 12px; }
     .det-toolbar .tb-spacer { flex: 1; }
     .det-toolbar button { font-size: 12px; padding: 2px 8px; }
+    .ann-filter-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 0 0 8px; font-size: 12px; }
+    .ann-filter-row .annf-lab { color: var(--muted); margin-right: 2px; }
+    .ann-filter-row .annf-sel { width: auto; padding: 2px 6px; font-size: 12px; }
+    .ann-filter-row .annf-sel.on { border-color: #2563eb; color: #1d4ed8; background: #eff6ff; }
+    .ann-filter-row .annf-clear { font-size: 12px; padding: 2px 8px; }
     .lightbox { position: fixed; inset: 0; background: rgba(15,23,42,.86); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
     .lightbox.open { display: flex; }
     .lightbox img { max-width: 96vw; max-height: 90vh; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
@@ -130,6 +135,10 @@
     .hist-body .run { background: #fbfcfe; }
     .run .badge-hist { display: inline-block; font-size: 11px; font-weight: 700; color: #64748b; background: #eef2f7; border-radius: 6px; padding: 1px 7px; margin-left: 8px; vertical-align: 2px; }
     .dup-note { font-size: 12px; color: var(--muted); margin: 2px 0 10px; }
+    .run-filter-row { margin-bottom: 10px; }
+    .run-filter-actions { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; margin-bottom: 4px; }
+    .run-filter-actions button { font-size: 12px; padding: 6px 10px; }
+    .run-filter-hint { font-size: 12px; color: var(--muted); margin: 0 0 10px; }
   </style>
 </head>
 <body>
@@ -158,9 +167,12 @@
             <label class="fl">模型版本</label>
             <select id="modelSel"></select>
           </div>
+          <div>
+            <label class="fl">并发数</label>
+            <input type="number" id="concurrency" min="1" max="16" value="4" title="同时请求模型的张数，过大可能压垮远端推理服务">
+          </div>
         </div>
-        <div id="customEpMount"></div>
-        <div class="hint">平台会直接调该模型的 VLM 接口，对快照里每张 cam1 评估图预测 G/N，落库后算夹住/没夹住准召率。</div>
+        <div class="hint">平台会并发调用 models.json 里该模型的 VLM 接口（默认 4 路），对快照里每张 cam1 评估图预测 G/N，落库后算夹住/没夹住准召率。</div>
         <div class="saverow">
           <button class="primary" id="startBtn">开始运行</button>
           <button class="danger" id="stopBtn" hidden title="停止当前评测，已跑结果会保留并入库">停止</button>
@@ -199,15 +211,164 @@
     <!-- run 列表 -->
     <div class="panel">
       <div class="hd">历史 Run</div>
-      <div class="bd" id="runList"><div class="empty">加载中…</div></div>
+      <div class="bd">
+        <div class="run-filter-row form-grid" id="runFilters" hidden>
+          <div>
+            <label class="fl">BM 快照</label>
+            <select id="runFilterBm"><option value="">全部</option></select>
+          </div>
+          <div>
+            <label class="fl">模型版本</label>
+            <select id="runFilterModel"><option value="">全部</option></select>
+          </div>
+          <div>
+            <label class="fl">起始日期</label>
+            <input type="date" id="runFilterFrom">
+          </div>
+          <div>
+            <label class="fl">结束日期</label>
+            <input type="date" id="runFilterTo">
+          </div>
+        </div>
+        <div class="run-filter-actions" id="runFilterActions" hidden>
+          <button type="button" id="runFilterClear">清除筛选</button>
+          <span class="run-filter-hint" id="runFilterHint"></span>
+        </div>
+        <div id="runList"><div class="empty">加载中…</div></div>
+      </div>
     </div>
   </div>
 
-  <script src="/model_endpoint_ui.js"></script>
+  <script src="/annotation_schema.js"></script>
   <script>
     const $ = (id) => document.getElementById(id);
     const pct = (v) => (v === null || v === undefined ? '—' : (v * 100).toFixed(1) + '%');
     let registryModels = [];
+    let allRuns = [];
+
+    function registryModelByKey(key) {
+      return registryModels.find((x) => x.key === key) || null;
+    }
+
+    function runModelLabel(run) {
+      const m = registryModels.find((x) =>
+        (run.model && (x.model === run.model || x.key === run.model))
+        || (run.model_key && x.key === run.model_key));
+      if (m) return m.label || m.model || m.key;
+      return run.model || run.model_key || '—';
+    }
+
+    function runMatchesModelFilter(run, filterKey) {
+      if (!filterKey) return true;
+      const reg = registryModelByKey(filterKey);
+      const filterIds = new Set([filterKey, reg && reg.model].filter(Boolean));
+      return filterIds.has(run.model_key) || filterIds.has(run.model);
+    }
+
+    function collectRunFilterModelOptions(runs) {
+      const opts = new Map();
+      for (const m of registryModels) {
+        opts.set(m.key, m.label || m.model || m.key);
+      }
+      for (const run of runs) {
+        const covered = [...opts.keys()].some((key) => runMatchesModelFilter(run, key));
+        if (!covered) {
+          const id = run.model || run.model_key;
+          if (id) opts.set(id, runModelLabel(run));
+        }
+      }
+      return [...opts.entries()].sort((a, b) => a[1].localeCompare(b[1], 'zh-CN'));
+    }
+
+    function parseRunDate(iso) {
+      if (!iso) return null;
+      const d = new Date(iso);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+
+    function applyRunFilters(runs) {
+      const bm = $('runFilterBm').value;
+      const model = $('runFilterModel').value;
+      const from = $('runFilterFrom').value;
+      const to = $('runFilterTo').value;
+      return runs.filter((run) => {
+        if (bm && run.bm_id !== bm) return false;
+        if (model && !runMatchesModelFilter(run, model)) return false;
+        if (from || to) {
+          const d = parseRunDate(run.created_at);
+          if (!d) return false;
+          if (from) {
+            const start = new Date(from + 'T00:00:00');
+            if (d < start) return false;
+          }
+          if (to) {
+            const end = new Date(to + 'T23:59:59.999');
+            if (d > end) return false;
+          }
+        }
+        return true;
+      });
+    }
+
+    function runFiltersActive() {
+      return !!($('runFilterBm').value || $('runFilterModel').value || $('runFilterFrom').value || $('runFilterTo').value);
+    }
+
+    function populateRunFilters(runs) {
+      const bmSel = $('runFilterBm');
+      const modelSel = $('runFilterModel');
+      const prevBm = bmSel.value;
+      const prevModel = modelSel.value;
+      const bms = Array.from(new Set(runs.map((r) => r.bm_id).filter(Boolean))).sort();
+      const models = collectRunFilterModelOptions(runs);
+      bmSel.innerHTML = '<option value="">全部</option>' + bms.map((id) => `<option value="${id}">${id}</option>`).join('');
+      modelSel.innerHTML = '<option value="">全部</option>' + models.map(([key, label]) => `<option value="${key}">${label}</option>`).join('');
+      if (prevBm && bms.includes(prevBm)) bmSel.value = prevBm;
+      if (prevModel && models.some(([key]) => key === prevModel)) modelSel.value = prevModel;
+      const show = runs.length > 0;
+      $('runFilters').hidden = !show;
+      $('runFilterActions').hidden = !show;
+    }
+
+    function updateRunFilterHint(shown, total) {
+      const hint = $('runFilterHint');
+      if (!total) {
+        hint.textContent = '';
+        return;
+      }
+      hint.textContent = runFiltersActive()
+        ? `显示 ${shown} / 共 ${total} 条 run`
+        : `共 ${total} 条 run`;
+    }
+
+    // 评测图片的「标注项筛选」：与标注页同源，取非系统的 select / multi 字段。
+    // 详情接口已给每条预测挂上 p.ann（只含这些字段），前端据此在看图时按标注属性过滤。
+    const RUN_FILTER_FIELDS = (typeof ANNOTATION_SCHEMA !== 'undefined' ? ANNOTATION_SCHEMA : [])
+      .filter((f) => !f.system && (f.type === 'select' || f.type === 'multi'));
+    const RUN_MULTI_KEYS = new Set(RUN_FILTER_FIELDS.filter((f) => f.type === 'multi').map((f) => f.key));
+    const RUN_EMPTY_FILTER = '__empty__';
+
+    // 按所选标注下拉过滤预测列表：多选字段按「包含」匹配，标量按相等；特殊值「未填写」筛该字段为空的样本。
+    function applyAnnFilters(list, annFilters) {
+      const keys = Object.keys(annFilters || {}).filter((k) => annFilters[k]);
+      if (!keys.length) return list;
+      return list.filter((p) => {
+        const ann = p.ann || {};
+        for (const key of keys) {
+          const want = annFilters[key];
+          if (RUN_MULTI_KEYS.has(key)) {
+            const arr = Array.isArray(ann[key]) ? ann[key] : [];
+            if (want === RUN_EMPTY_FILTER) { if (arr.length) return false; }
+            else if (!arr.includes(want)) return false;
+          } else if (want === RUN_EMPTY_FILTER) {
+            if ((ann[key] || '') !== '') return false;
+          } else if ((ann[key] || '') !== want) {
+            return false;
+          }
+        }
+        return true;
+      });
+    }
 
     async function loadBms() {
       const r = await fetch('/api/bm/list');
@@ -227,14 +388,13 @@
         : '<option value="">models.json 里没有模型</option>';
     }
 
-    function defaultModelEndpoint() {
-      const key = $('modelSel') && $('modelSel').value;
-      const m = registryModels.find((x) => x.key === key);
-      return m && m.endpoint ? ModelEndpointUi.parseEndpointUrl(m.endpoint) : null;
-    }
-
     function runStartBody(bmId, modelKey) {
-      return Object.assign({ bm_id: bmId, model_key: modelKey }, ModelEndpointUi.getPayload());
+      const conc = parseInt($('concurrency').value, 10);
+      return {
+        bm_id: bmId,
+        model_key: modelKey,
+        concurrency: Number.isFinite(conc) ? Math.max(1, Math.min(16, conc)) : 4,
+      };
     }
 
     let pollTimer = null;
@@ -371,7 +531,7 @@
       const m = run.metrics && run.metrics.overall;
       const done = run.status && run.status !== 'completed';
       return `<div class="run">
-        <h3>${run.model || run.model_key} @ ${run.bm_id}${isHistory ? '<span class="badge-hist">历史</span>' : ''}</h3>
+        <h3>${runModelLabel(run)} @ ${run.bm_id}${isHistory ? '<span class="badge-hist">历史</span>' : ''}</h3>
         <div class="meta">${run.run_id} · ${run.created_at || ''} · ${run.total || 0} 张${run.failed ? ` · 失败 ${run.failed}` : ''}${done ? ` · ${run.status}` : ''}</div>
         ${m ? confusionMatrix(m, { runId: run.run_id }) : '<div class="hint">指标生成中或运行未完成</div>'}
         <div class="acts">
@@ -380,7 +540,8 @@
           <button onclick="toggleByCat('${run.run_id}',this)">按类别指标</button>
           <button onclick="exportRunCsv('${run.run_id}')" title="导出本次快照评测的逐样本明细">导出CSV</button>
           <button onclick="exportRunJson('${run.run_id}')" title="导出本次 run 的统计与指标">导出统计JSON</button>
-          ${run.failed ? `<button data-run-retry="${run.run_id}" title="只重跑本次失败/无法识别（多为网络抖动 fetch failed）的样本，结果合并回本 run">重跑失败 ${run.failed}</button>` : ''}` : ''}
+          ${run.failed ? `<button data-run-retry="${run.run_id}" title="只重跑本次失败/无法识别（多为网络抖动 fetch failed）的样本，结果合并回本 run">重跑失败 ${run.failed}</button>` : ''}
+          <button data-run-resync="${run.run_id}" title="用标注页最新人工结论重新覆盖本快照冻结的标注，并刷新该基准所有 run 的真值与指标（带备份可回退）">同步标注</button>` : ''}
           <button class="danger" data-run-del="${run.run_id}" title="删除本次 run 记录（不动原图、标注和 BM 快照）">删除</button>
         </div>
         <div id="cat_${cssId(run.run_id)}"></div>
@@ -426,15 +587,51 @@
       }
     }
 
+    async function resyncRunRecord(runId) {
+      if (!runId) return;
+      if (!confirm(`用标注页最新人工结论同步这次评测？\n${runId}\n\n会把该 BM 快照里冻结的标注更新为标注页当前值，并刷新该基准下所有 run 的真值与指标。\n（已自动备份，可回退；不影响原图与标注）`)) return;
+      try {
+        const r = await fetch('/api/run/resync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ run_id: runId }),
+        });
+        const d = await r.json();
+        if (!r.ok || !d.ok) throw new Error(d.message || `HTTP ${r.status}`);
+        Object.keys(detailCache).forEach((k) => delete detailCache[k]);
+        if (d.snapshot_changed === 0) {
+          alert('快照标注已与标注页一致，无需更新。');
+        } else {
+          const runNote = (d.runs_updated || []).map((x) => `· ${x.run_id.split('_').slice(-2).join('_')}：真值改 ${x.gt_changed}，准确率 ${(x.accuracy * 100).toFixed(2)}%`).join('\n');
+          alert(`已同步：快照更新 ${d.snapshot_changed} 张标注，刷新 ${d.runs_updated.length} 个 run。\n\n${runNote}\n\n备份：${d.backup || '（无变化）'}`);
+        }
+        await loadRuns();
+      } catch (e) {
+        alert('同步标注失败：' + (e.message || e));
+      }
+    }
+
     async function loadRuns() {
       const r = await fetch('/api/run/list');
       const data = await r.json();
-      const runs = data.runs || [];
-      if (!runs.length) { $('runList').innerHTML = '<div class="empty">还没有 run</div>'; return; }
+      allRuns = data.runs || [];
+      populateRunFilters(allRuns);
+      renderRuns();
+    }
+
+    function renderRuns() {
+      const runs = applyRunFilters(allRuns);
+      updateRunFilterHint(runs.length, allRuns.length);
+      if (!allRuns.length) { $('runList').innerHTML = '<div class="empty">还没有 run</div>'; populateCompareSelects([]); return; }
+      if (!runs.length) {
+        $('runList').innerHTML = '<div class="empty">没有符合筛选条件的 run</div>';
+        populateCompareSelects([]);
+        return;
+      }
       // 同一个「模型 + 快照」可能跑过多次：默认只展开最新一次，旧的折叠收起，不删历史。
       const groups = new Map();
       for (const run of runs) {
-        const key = (run.bm_id || '') + '__' + (run.model_key || run.model || '');
+        const key = (run.bm_id || '') + '__' + (run.model || run.model_key || '');
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(run);
       }
@@ -490,7 +687,7 @@
     }
 
     function populateCompareSelects(runs) {
-      const opt = (r) => `<option value="${r.run_id}">${r.model || r.model_key} @ ${r.bm_id} · ${(r.created_at || '').slice(0, 16).replace('T', ' ')}</option>`;
+      const opt = (r) => `<option value="${r.run_id}">${runModelLabel(r)} @ ${r.bm_id} · ${(r.created_at || '').slice(0, 16).replace('T', ' ')}</option>`;
       const html = runs.map(opt).join('');
       const a = $('cmpA'), b = $('cmpB');
       const prevA = a.value, prevB = b.value;
@@ -569,7 +766,7 @@
       box.dataset.filter = filter;
       markActive(runId, filter);
       const prev = predView[runId] || {};
-      predView[runId] = { filter, label, cols: prev.cols || 'auto', pageSize: prev.pageSize != null ? prev.pageSize : 120, offset: 0 };
+      predView[runId] = { filter, label, cols: prev.cols || 'auto', pageSize: prev.pageSize != null ? prev.pageSize : 120, offset: 0, annFilters: prev.annFilters || {} };
       box.innerHTML = '<div class="det-toolbar">加载中…</div>';
       await getPreds(runId); // 预取并缓存
       renderPredView(runId);
@@ -579,7 +776,8 @@
       const box = $('pred_' + cssId(runId));
       const v = predView[runId];
       if (!box || !v) return;
-      const list = filterPreds(detailCache[runId] ? detailCache[runId].predictions || [] : [], v.filter);
+      const baseList = filterPreds(detailCache[runId] ? detailCache[runId].predictions || [] : [], v.filter);
+      const list = applyAnnFilters(baseList, v.annFilters);
       const total = list.length;
       const pageSize = v.pageSize || total || 1;
       const maxOffset = Math.max(0, Math.floor((total - 1) / pageSize) * pageSize);
@@ -599,11 +797,22 @@
       const pageOpts = PRED_PAGE.map((n) => `<option value="${n}" ${v.pageSize === n ? 'selected' : ''}>${n === 0 ? '全部' : n}</option>`).join('');
       const from = total ? v.offset + 1 : 0;
       const to = v.pageSize ? Math.min(v.offset + v.pageSize, total) : total;
+      const annActive = Object.keys(v.annFilters || {}).some((k) => v.annFilters[k]);
+      const baseTotal = baseList.length;
+      const countText = annActive ? `${total} / ${baseTotal}` : `${total}`;
       const pager = v.pageSize
         ? `<button data-pred-act="prev" data-run="${escAttr(runId)}" ${v.offset <= 0 ? 'disabled' : ''}>上一页</button>
-           <span>${from}-${to} / ${total}</span>
+           <span>${from}-${to} / ${countText}</span>
            <button data-pred-act="next" data-run="${escAttr(runId)}" ${v.offset + v.pageSize >= total ? 'disabled' : ''}>下一页</button>`
-        : `<span>共 ${total} 张</span>`;
+        : `<span>共 ${countText} 张</span>`;
+      const annSelects = RUN_FILTER_FIELDS.map((f) => {
+        const cur = (v.annFilters && v.annFilters[f.key]) || '';
+        const opts = [`<option value="">${f.label}</option>`, `<option value="${RUN_EMPTY_FILTER}" ${cur === RUN_EMPTY_FILTER ? 'selected' : ''}>未填写</option>`]
+          .concat((f.options || []).map((o) => `<option value="${escAttr(o)}" ${cur === o ? 'selected' : ''}>${o}</option>`)).join('');
+        return `<select class="annf-sel${cur ? ' on' : ''}" data-annf="${f.key}" data-run="${escAttr(runId)}" title="${f.label}">${opts}</select>`;
+      }).join('');
+      const annClear = annActive ? `<button class="ghost annf-clear" data-annf-clear data-run="${escAttr(runId)}">清空标注筛选</button>` : '';
+      const annRow = `<div class="ann-filter-row"><span class="annf-lab">标注项筛选</span>${annSelects}${annClear}</div>`;
       box.innerHTML = `<div class="det-toolbar">
           <b>${v.label || v.filter}</b>
           <label>每行 <select data-pred-set="cols" data-run="${escAttr(runId)}">${colOpts}</select></label>
@@ -611,6 +820,7 @@
           <span class="tb-spacer"></span>
           ${pager}
         </div>
+        ${annRow}
         <div class="grid" style="grid-template-columns:${colsCss};">${cells || '<div class="empty">无</div>'}</div>`;
     }
 
@@ -652,6 +862,11 @@
         retryRunRecord(retryBtn.dataset.runRetry);
         return;
       }
+      const resyncBtn = event.target.closest('button[data-run-resync]');
+      if (resyncBtn) {
+        resyncRunRecord(resyncBtn.dataset.runResync);
+        return;
+      }
       const chip = event.target.closest('.flip-chip');
       if (chip && chip.dataset.bucket) { toggleFlipBucket(chip.dataset.bucket); return; }
       const gtBtn = event.target.closest('[data-gt-filter]');
@@ -666,6 +881,13 @@
       // 点缩略图放大
       const lbImg = event.target.closest('img[data-lb]');
       if (lbImg) { openLightbox(lbImg.getAttribute('src'), lbImg.getAttribute('data-cap')); return; }
+      // 清空标注项筛选
+      const annClr = event.target.closest('button[data-annf-clear]');
+      if (annClr && annClr.dataset.run) {
+        const v = predView[annClr.dataset.run];
+        if (v) { v.annFilters = {}; v.offset = 0; renderPredView(annClr.dataset.run); }
+        return;
+      }
       // 图片展示分页：上一页/下一页
       const pact = event.target.closest('button[data-pred-act]');
       if (pact && pact.dataset.run) {
@@ -690,6 +912,19 @@
       if (!v) return;
       if (sel.dataset.predSet === 'cols') { v.cols = sel.value; }
       else if (sel.dataset.predSet === 'page') { v.pageSize = parseInt(sel.value, 10) || 0; v.offset = 0; }
+      renderPredView(sel.dataset.run);
+    });
+
+    // 标注项筛选下拉变化：更新该 run 的 annFilters 并回到第一页重绘。
+    document.addEventListener('change', (event) => {
+      const sel = event.target.closest('select[data-annf]');
+      if (!sel || !sel.dataset.run) return;
+      const v = predView[sel.dataset.run];
+      if (!v) return;
+      v.annFilters = v.annFilters || {};
+      if (sel.value) v.annFilters[sel.dataset.annf] = sel.value;
+      else delete v.annFilters[sel.dataset.annf];
+      v.offset = 0;
       renderPredView(sel.dataset.run);
     });
 
@@ -885,15 +1120,20 @@
     $('startBtn').addEventListener('click', startRun);
     $('stopBtn').addEventListener('click', cancelCurrentRun);
     $('cmpBtn').addEventListener('click', doCompare);
+    ['runFilterBm', 'runFilterModel', 'runFilterFrom', 'runFilterTo'].forEach((id) => {
+      $(id).addEventListener('change', renderRuns);
+    });
+    $('runFilterClear').addEventListener('click', () => {
+      $('runFilterBm').value = '';
+      $('runFilterModel').value = '';
+      $('runFilterFrom').value = '';
+      $('runFilterTo').value = '';
+      renderRuns();
+    });
 
     (async function init() {
       await loadBms();
       await loadModels();
-      const epMount = $('customEpMount');
-      if (epMount && window.ModelEndpointUi) {
-        epMount.innerHTML = ModelEndpointUi.endpointUiHtml(false);
-        ModelEndpointUi.bind(epMount, { defaultEndpoint: defaultModelEndpoint });
-      }
       await loadRuns();
     })();
   </script>

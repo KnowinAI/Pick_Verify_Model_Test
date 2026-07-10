@@ -21,6 +21,16 @@
       "prompt": "",
       "api_key_env": "VLM_API_KEY",
       "send_cam0": false
+    },
+    {
+      "key": "pick_verifier_2",
+      "label": "训练模型 (pick_verifier_2)",
+      "endpoint": "http://101.132.143.105:5087/pick_verifier_2/v1/chat/completions",
+      "model": "pick_verifier_2",
+      "prompt_version": "gripper_gn_binary_v1",
+      "prompt": "",
+      "api_key_env": "VLM_API_KEY",
+      "send_cam0": false
     }
   ]
 }

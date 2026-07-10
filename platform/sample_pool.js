@@ -283,9 +283,26 @@ function listCategories() {
     .sort();
 }
 
+// 统计样本池中「本地 cam1 仍存在」的可见样本（与 listSamples 列表口径一致）。
+// manifest 里可能仍登记已删图的幽灵条目，此处不计入，避免类别下拉显示 (415) 但列表为 0。
+function visiblePoolStats() {
+  const { entries } = loadPoolEntries();
+  const perCategory = new Map();
+  let total = 0;
+  let ghost = 0;
+  for (const e of entries) {
+    if (!cam1Exists(e.cam1_path)) { ghost += 1; continue; }
+    total += 1;
+    const cat = e.object_category || '';
+    perCategory.set(cat, (perCategory.get(cat) || 0) + 1);
+  }
+  return { total, ghost, perCategory };
+}
+
 // 页面状态：样本池总量 + 各类别待入池数量（只按 sample_id 估算，速度快）。
 function getPoolStatus() {
   const pool = loadPool();
+  const visible = visiblePoolStats();
   const categories = listCategories();
   const categoryRows = [];
   for (const category of categories) {
@@ -310,8 +327,10 @@ function getPoolStatus() {
     ok: true,
     testcollection_dir: TESTCOLLECTION_DIR,
     pool_exists: fs.existsSync(POOL_MANIFEST_PATH),
-    total_samples: pool.total,
-    samples_per_category: Object.fromEntries(Array.from(pool.perCategory.entries()).sort()),
+    total_samples: visible.total,
+    manifest_total: pool.total,
+    ghost_samples: visible.ghost,
+    samples_per_category: Object.fromEntries(Array.from(visible.perCategory.entries()).sort()),
     samples_per_batch: Object.fromEntries(Array.from(pool.perBatch.entries()).sort()),
     categories: categoryRows,
     updated_at: nowIso(),

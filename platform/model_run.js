@@ -21,6 +21,66 @@ N：没夹住，夹爪当前没有夹住物体。`;
 // 进行中的 run 进度（内存态，供前端轮询）。
 const runJobs = new Map();
 
+const DEFAULT_CONCURRENCY = 4;
+const MAX_CONCURRENCY = 16;
+
+function resolveConcurrency(opts = {}) {
+  const n = parseInt(opts.concurrency ?? process.env.MODEL_RUN_CONCURRENCY ?? String(DEFAULT_CONCURRENCY), 10);
+  return Math.max(1, Math.min(MAX_CONCURRENCY, Number.isFinite(n) ? n : DEFAULT_CONCURRENCY));
+}
+
+// 串行化 WriteStream 写入，避免并发时 jsonl 行交错。
+function chainStreamWrite(stream, chunk) {
+  const prev = stream._writeChain || Promise.resolve();
+  stream._writeChain = prev.then(() => new Promise((resolve, reject) => {
+    stream.write(chunk, (err) => (err ? reject(err) : resolve()));
+  }));
+  return stream._writeChain;
+}
+
+function buildPredictionRecord(sample, { raw, pred, error }) {
+  return {
+    sample_id: sample.sample_id,
+    object_category: sample.object_category,
+    gt_label: sample.label || '',
+    gt_human_result: sample.human_result || '',
+    pred_label: pred,
+    raw_output: raw,
+    correct: (sample.label === 'G' || sample.label === 'N') ? (sample.label === pred) : null,
+    error: error || '',
+  };
+}
+
+// 用固定并发数跑样本列表；cancelRequested 时不再领取新样本，已在飞的请求会跑完。
+async function runSamplesConcurrent(samples, modelCfg, job, onRecord) {
+  const concurrency = resolveConcurrency(job);
+  job.concurrency = concurrency;
+  let nextIndex = 0;
+
+  const workers = Array.from({ length: Math.min(concurrency, samples.length) }, async () => {
+    while (true) {
+      if (job.cancelRequested) return;
+      const i = nextIndex;
+      nextIndex += 1;
+      if (i >= samples.length) return;
+      const sample = samples[i];
+      job.current = sample.sample_id;
+      const result = await callModel(modelCfg, sample.sample_id);
+      if (job.cancelRequested) return;
+      const rec = buildPredictionRecord(sample, result);
+      await onRecord(rec);
+      job.done += 1;
+      if (result.error) job.failed += 1; else job.success += 1;
+      job.updated_at = nowIso();
+      job.message = job.retry
+        ? `重跑 ${job.done}/${job.total}`
+        : `已跑 ${job.done}/${job.total}`;
+    }
+  });
+
+  await Promise.all(workers);
+}
+
 function nowIso() {
   const d = new Date();
   const tz = -d.getTimezoneOffset();
@@ -138,7 +198,18 @@ async function callModel(modelCfg, sampleId) {
       body: JSON.stringify(payload),
     });
   } catch (error) {
-    return { raw: '', pred: 'Unknown', error: `调用失败：${error.message || error}` };
+    // 网络/连接层失败，区别于下方「无法识别输出」的解析失败：多为远端推理服务挂了/重启/过载，不是模型识别问题。
+    const code = (error && error.cause && error.cause.code) || (error && error.code) || '';
+    const netHints = {
+      ECONNRESET: '远端重置了连接（端口在监听但推理服务异常/重启/过载）',
+      ECONNREFUSED: '远端拒绝连接（端口未监听，服务可能没启动）',
+      ETIMEDOUT: '连接超时（服务无响应或网络不通）',
+      UND_ERR_CONNECT_TIMEOUT: '连接超时（服务无响应或网络不通）',
+      ENOTFOUND: '主机无法解析（地址写错或 DNS 不通）',
+      EHOSTUNREACH: '主机不可达（网络/路由问题）',
+    };
+    const hint = netHints[code] || (error && error.message) || '网络请求失败';
+    return { raw: '', pred: 'Unknown', error: `模型服务连接失败：${hint}${code ? `（${code}）` : ''} —— 非模型识别问题，请检查推理服务 ${modelCfg.endpoint}` };
   }
   let result;
   try {
@@ -219,10 +290,13 @@ function startRun(opts = {}) {
   if (fs.existsSync(dir)) return { ok: false, message: 'run 已存在，请稍后重试' };
 
   const samples = snap.samples;
+  const concurrency = resolveConcurrency(opts);
   const job = {
     run_id: runId, bm_id: bmId, model_key: modelKey, model: modelCfg.model,
     status: 'running', total: samples.length, done: 0, success: 0, failed: 0,
-    started_at: nowIso(), updated_at: nowIso(), message: '准备中', current: '',
+    concurrency,
+    started_at: nowIso(), updated_at: nowIso(),
+    message: `准备中（并发 ${concurrency}）`, current: '',
   };
   runJobs.set(runId, job);
 
@@ -232,27 +306,12 @@ function startRun(opts = {}) {
     const predPath = path.join(dir, 'predictions.jsonl');
     const stream = fs.createWriteStream(predPath, { flags: 'a' });
     const predictions = [];
-    for (const s of samples) {
-      if (job.cancelRequested) { job.cancelled = true; break; }
-      job.current = s.sample_id;
-      const { raw, pred, error } = await callModel(modelCfg, s.sample_id);
-      const rec = {
-        sample_id: s.sample_id,
-        object_category: s.object_category,
-        gt_label: s.label || '',
-        gt_human_result: s.human_result || '',
-        pred_label: pred,
-        raw_output: raw,
-        correct: (s.label === 'G' || s.label === 'N') ? (s.label === pred) : null,
-        error: error || '',
-      };
+    await runSamplesConcurrent(samples, modelCfg, job, async (rec) => {
       predictions.push(rec);
-      stream.write(JSON.stringify(rec) + '\n');
-      job.done += 1;
-      if (error) job.failed += 1; else job.success += 1;
-      job.updated_at = nowIso();
-      job.message = `已跑 ${job.done}/${job.total}`;
-    }
+      await chainStreamWrite(stream, JSON.stringify(rec) + '\n');
+    });
+    if (job.cancelRequested) job.cancelled = true;
+    await (stream._writeChain || Promise.resolve());
     stream.end();
 
     const cancelled = !!job.cancelled;
@@ -260,6 +319,7 @@ function startRun(opts = {}) {
     const meta = {
       run_id: runId, bm_id: bmId, model_key: modelKey,
       model: modelCfg.model, endpoint: modelCfg.endpoint, prompt_version: modelCfg.prompt_version || '',
+      concurrency: job.concurrency || concurrency,
       created_at: job.started_at, finished_at: nowIso(),
       // 中途停止时只统计已实际跑过的样本；planned_total 记录原计划张数。
       total: cancelled ? predictions.length : samples.length,
@@ -323,29 +383,38 @@ function retryRun(runId) {
     return { ok: false, message: '无法确定模型 endpoint（models.json 缺该模型且 meta 无 endpoint）' };
   }
 
+  const concurrency = resolveConcurrency({ concurrency: meta.concurrency });
   const job = {
     run_id: id, bm_id: meta.bm_id, model_key: meta.model_key, model: modelCfg.model,
     status: 'running', total: retryIdx.length, done: 0, success: 0, failed: 0,
-    started_at: nowIso(), updated_at: nowIso(), message: '重跑失败样本中', current: '', retry: true,
+    concurrency,
+    started_at: nowIso(), updated_at: nowIso(),
+    message: `重跑失败样本中（并发 ${concurrency}）`, current: '', retry: true,
   };
   runJobs.set(id, job);
 
   (async () => {
-    for (const i of retryIdx) {
+    const indexBySid = new Map(retryIdx.map((i) => [predictions[i].sample_id, i]));
+    const retrySamples = retryIdx.map((i) => {
       const p = predictions[i];
-      job.current = p.sample_id;
-      const { raw, pred, error } = await callModel(modelCfg, p.sample_id);
-      predictions[i] = Object.assign({}, p, {
-        pred_label: pred,
-        raw_output: raw,
-        correct: (p.gt_label === 'G' || p.gt_label === 'N') ? (p.gt_label === pred) : null,
-        error: error || '',
+      return {
+        sample_id: p.sample_id,
+        object_category: p.object_category,
+        label: p.gt_label,
+        human_result: p.gt_human_result,
+      };
+    });
+    await runSamplesConcurrent(retrySamples, modelCfg, job, async (rec) => {
+      const idx = indexBySid.get(rec.sample_id);
+      if (idx === undefined) return;
+      const p = predictions[idx];
+      predictions[idx] = Object.assign({}, p, {
+        pred_label: rec.pred_label,
+        raw_output: rec.raw_output,
+        correct: rec.correct,
+        error: rec.error,
       });
-      job.done += 1;
-      if (error || pred === 'Unknown') job.failed += 1; else job.success += 1;
-      job.updated_at = nowIso();
-      job.message = `重跑 ${job.done}/${job.total}`;
-    }
+    });
 
     fs.writeFileSync(predPath, predictions.map((p) => JSON.stringify(p)).join('\n') + '\n', 'utf8');
 
@@ -445,6 +514,55 @@ function deleteRun(runId) {
   return { ok: true, run_id: id };
 }
 
+// 同步某基准下所有已完成 run 的人工真值（gt）：按 gtMap（sample_id -> {label, human_result}）
+// 更新每条预测的 gt_label / gt_human_result，重算 correct 与指标。pred 不变。
+// 只改 gt 有变化的 run；每个被改的 run 先备份 predictions.jsonl / meta.json 到 _backups。
+// 不新增/删除样本，不动原图与标注。
+function resyncRunsGt(bmId, gtMap, backupRoot) {
+  if (!fs.existsSync(RUNS_DIR)) return { updated: [] };
+  const updated = [];
+  for (const name of fs.readdirSync(RUNS_DIR)) {
+    const dir = path.join(RUNS_DIR, name);
+    const metaPath = path.join(dir, 'meta.json');
+    const predPath = path.join(dir, 'predictions.jsonl');
+    if (!fs.existsSync(metaPath) || !fs.existsSync(predPath)) continue;
+    let meta;
+    try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')); } catch (_) { continue; }
+    if (meta.bm_id !== bmId) continue;
+
+    const lines = fs.readFileSync(predPath, 'utf8').split(/\r?\n/).filter((l) => l.trim().length);
+    let changed = 0;
+    const predictions = lines.map((l) => JSON.parse(l));
+    for (const p of predictions) {
+      const gt = gtMap[p.sample_id];
+      if (!gt) continue;
+      const newLabel = gt.label || '';
+      const newHuman = gt.human_result || '';
+      if (p.gt_label !== newLabel || p.gt_human_result !== newHuman) {
+        p.gt_label = newLabel;
+        p.gt_human_result = newHuman;
+        p.correct = (newLabel === 'G' || newLabel === 'N') ? (newLabel === p.pred_label) : null;
+        changed += 1;
+      }
+    }
+    if (!changed) continue;
+
+    if (backupRoot) {
+      const bdir = path.join(backupRoot, 'runs', name);
+      fs.mkdirSync(bdir, { recursive: true });
+      fs.copyFileSync(predPath, path.join(bdir, 'predictions.jsonl'));
+      fs.copyFileSync(metaPath, path.join(bdir, 'meta.json'));
+    }
+    const metrics = computeAllMetrics(predictions);
+    meta.metrics = metrics;
+    meta.last_resync = { at: nowIso(), gt_changed: changed };
+    fs.writeFileSync(predPath, predictions.map((p) => JSON.stringify(p)).join('\n') + '\n', 'utf8');
+    fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
+    updated.push({ run_id: name, gt_changed: changed, accuracy: metrics.overall.accuracy });
+  }
+  return { updated };
+}
+
 module.exports = {
   listModels,
   loadModels,
@@ -461,6 +579,7 @@ module.exports = {
   getRunDetail,
   deleteRun,
   computeAllMetrics,
+  resyncRunsGt,
   parsePrediction,
   RUNS_DIR,
 };

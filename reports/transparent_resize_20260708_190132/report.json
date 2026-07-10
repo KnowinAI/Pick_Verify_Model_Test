@@ -1,0 +1,13 @@
+﻿{
+    "task":  "resize_transparent_to_720p",
+    "created_at":  "2026-07-08T19:01:33.9745100+08:00",
+    "source_dir":  "D:\\dev\\Projects\\pick-verify\\testCollection\\transparent",
+    "dest_dir":  "D:\\dev\\Projects\\pick-verify\\testCollection\\transparent_1280x720",
+    "target_size":  "1280x720",
+    "total_source_files":  172,
+    "resized_ok":  172,
+    "failed":  0,
+    "failed_items":  [
+
+                     ]
+}

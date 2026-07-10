@@ -589,9 +589,10 @@
     async function loadPickCategories() {
       const r = await fetch('/api/pool/status');
       const data = await r.json();
-      const cats = Object.keys(data.samples_per_category || {});
+      const counts = data.samples_per_category || {};
+      const cats = Object.keys(counts).filter((c) => counts[c] > 0);
       $('pCategory').innerHTML = '<option value="">全部类别</option>' +
-        cats.map((c) => `<option value="${c}">${c} (${data.samples_per_category[c]})</option>`).join('');
+        cats.map((c) => `<option value="${c}">${c} (${counts[c]})</option>`).join('');
     }
 
     async function loadPick() {

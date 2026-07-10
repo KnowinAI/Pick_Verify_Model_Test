@@ -13,6 +13,32 @@ const zlib = require('zlib');
 const samplePool = require('./sample_pool');
 const bmSnapshot = require('./bm_snapshot');
 const modelRun = require('./model_run');
+const { ANNOTATION_SCHEMA } = require('./annotation_schema');
+
+// 评测 run 图片可用的「标注项筛选」字段（与标注页一致：非系统的 select / multi 字段）。
+// run 预测明细里默认没有标注属性，详情接口按 sample_id 关联补上这些字段，供前端按标注筛选评测图片。
+const RUN_ANN_FILTER_KEYS = ANNOTATION_SCHEMA
+  .filter((f) => !f.system && (f.type === 'select' || f.type === 'multi'))
+  .map((f) => f.key);
+
+// 给一组预测明细按 sample_id 关联标注，挂上 p.ann（只含可筛选字段，空值不带）。非破坏性，只读标注。
+function attachAnnotationsToPredictions(predictions) {
+  let annotations;
+  try { annotations = samplePool.loadAnnotations(); } catch (e) { annotations = new Map(); }
+  for (const p of predictions) {
+    const ann = annotations.get(p.sample_id) || null;
+    const out = {};
+    if (ann) {
+      for (const key of RUN_ANN_FILTER_KEYS) {
+        const v = ann[key];
+        if (v === undefined || v === null) continue;
+        if (Array.isArray(v)) { if (v.length) out[key] = v; }
+        else if (String(v) !== '') out[key] = v;
+      }
+    }
+    p.ann = out;
+  }
+}
 
 // 服务基础配置。大多数配置支持通过环境变量覆盖。
 const HOST = process.env.HOST || '0.0.0.0';
@@ -48,7 +74,6 @@ const LABEL_HTML_PATH = path.join(__dirname, 'gripper_label.html');
 const BM_HTML_PATH = path.join(__dirname, 'gripper_bm.html');
 const RUNS_HTML_PATH = path.join(__dirname, 'gripper_runs.html');
 const ANNOTATION_SCHEMA_PATH = path.join(__dirname, 'annotation_schema.js');
-const MODEL_ENDPOINT_UI_PATH = path.join(__dirname, 'model_endpoint_ui.js');
 const LOCAL_IMAGE_DIR = path.join(__dirname, '..', 'local_images');
 const DEFAULT_RECORD_LIMIT = 5000;
 const MAX_RECORD_LIMIT = 20000;
@@ -2766,6 +2791,7 @@ async function handleApi(req, res, url) {
       const result = modelRun.startRun({
         bmId: body.bm_id,
         modelKey: body.model_key,
+        concurrency: body.concurrency,
         endpoint_host: body.endpoint_host,
         endpoint_port: body.endpoint_port,
         host: body.host,
@@ -2808,6 +2834,7 @@ async function handleApi(req, res, url) {
   if (req.method === 'GET' && url.pathname === '/api/run/detail') {
     try {
       const result = modelRun.getRunDetail(url.searchParams.get('run_id') || '');
+      if (result.ok && Array.isArray(result.predictions)) attachAnnotationsToPredictions(result.predictions);
       sendJson(res, result.ok ? 200 : 404, result);
     } catch (error) { sendJson(res, 500, { ok: false, message: error.message || String(error) }); }
     return;
@@ -2829,6 +2856,32 @@ async function handleApi(req, res, url) {
       const body = JSON.parse((await readBody(req)) || '{}');
       const result = modelRun.retryRun(body.run_id || '');
       sendJson(res, result.ok ? 200 : 400, result);
+    } catch (error) { sendJson(res, 500, { ok: false, message: error.message || String(error) }); }
+    return;
+  }
+
+  // 模型评测：同步标注——把标注页最新人工结论重灌进该 run 的 BM 快照，并刷新该基准所有 run 的 gt 与指标。
+  if (req.method === 'POST' && url.pathname === '/api/run/resync') {
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      let bmId = body.bm_id || '';
+      const runId = body.run_id || '';
+      if (!bmId && runId) {
+        const detail = modelRun.getRunDetail(runId);
+        if (detail.ok && detail.meta) bmId = detail.meta.bm_id || '';
+      }
+      if (!bmId) { sendJson(res, 400, { ok: false, message: '缺少 bm_id / run_id' }); return; }
+      const snapRes = bmSnapshot.resyncSnapshotFromAnnotations(bmId);
+      if (!snapRes.ok) { sendJson(res, 400, snapRes); return; }
+      const runRes = modelRun.resyncRunsGt(bmId, snapRes.gtMap || {}, snapRes.backup || null);
+      sendJson(res, 200, {
+        ok: true,
+        bm_id: bmId,
+        snapshot_changed: snapRes.changed,
+        label_changes: snapRes.label_changes,
+        runs_updated: runRes.updated,
+        backup: snapRes.backup || null,
+      });
     } catch (error) { sendJson(res, 500, { ok: false, message: error.message || String(error) }); }
     return;
   }
@@ -3655,11 +3708,6 @@ const server = http.createServer(async (req, res) => {
     // 标注字段单一数据源：直接把 annotation_schema.js 提供给浏览器，作为全局 ANNOTATION_SCHEMA。
     if (url.pathname === '/annotation_schema.js') {
       sendText(res, 200, fs.readFileSync(ANNOTATION_SCHEMA_PATH, 'utf8'), 'application/javascript; charset=utf-8');
-      return;
-    }
-
-    if (url.pathname === '/model_endpoint_ui.js') {
-      sendText(res, 200, fs.readFileSync(MODEL_ENDPOINT_UI_PATH, 'utf8'), 'application/javascript; charset=utf-8');
       return;
     }
 

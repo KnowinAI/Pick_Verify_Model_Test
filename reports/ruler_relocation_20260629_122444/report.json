@@ -1,0 +1,11 @@
+{
+  "created_at": "2026-06-29T04:24:44.668Z",
+  "mode": "apply",
+  "src_dir": "D:\\dev\\Projects\\pick-verify\\testCollection\\PhoneCover\\20260616",
+  "dest_dir": "D:\\dev\\Projects\\pick-verify\\testCollection\\Ruler",
+  "total_groups": 39,
+  "copied_files": 78,
+  "already_present": 0,
+  "deleted_files": 78,
+  "anomalies": []
+}

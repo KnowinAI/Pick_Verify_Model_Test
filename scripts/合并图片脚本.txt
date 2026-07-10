@@ -1,7 +1,6 @@
  图片更名配对
-powershell -ExecutionPolicy Bypass -File .\copy_normalized_cam_pairs_v1.ps1 -InputDirectories "D:\dev\Projects\dataCollection\xi" -OutputRoot "D:\dev\Projects\dataCollection\xi_normalized-cam"
 
-powershell -ExecutionPolicy Bypass -File .\copy_normalized_cam_pairs.ps1 -InputDirectories "D:\dev\Projects\pick-verify\platform\testCollection\PlushToy\20260605" -OutputRoot "D:\dev\Projects\pick-verify\platform\testCollection\PlushToy\20260605-normalized-cam"
+powershell -ExecutionPolicy Bypass -File .\copy_normalized_cam_pairs.ps1 -InputDirectories "D:\dev\Projects\dataCollection\20260624wyz" -OutputRoot "D:\dev\Projects\dataCollection\20260624wyz-normalized-cam"
 
 
 powershell -ExecutionPolicy Bypass -File .\copy_normalized_cam_pairs_FORCED_RENAME.ps1 `

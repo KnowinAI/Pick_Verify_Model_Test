@@ -358,6 +358,71 @@ function setSnapshotLock(bmId, locked) {
   return { ok: true, bm_id: id, locked: meta.locked };
 }
 
+// 同步标注：用标注页当前最新标注（annotations.jsonl）重新覆盖快照里冻结的标注字段，
+// 并按新标签重算 meta 计数。用于「标注页改了人工结论、但快照仍是旧结论」时手动对齐。
+// 只更新已在快照中的样本（不新增/不删除样本）；找不到当前标注的样本保持原样。
+// 先备份 snapshot.jsonl / meta.json 到 _backups，可回退。
+// 返回 gtMap（sample_id -> {label, human_result}）供上层同步各 run 的 gt。
+function resyncSnapshotFromAnnotations(bmId) {
+  const id = sanitizeBmId(bmId);
+  const dir = path.join(BM_DIR, id);
+  const snapPath = path.join(dir, 'snapshot.jsonl');
+  const metaPath = path.join(dir, 'meta.json');
+  if (!fs.existsSync(snapPath) || !fs.existsSync(metaPath)) return { ok: false, message: '快照不存在' };
+
+  let meta;
+  try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')); }
+  catch (error) { return { ok: false, message: `meta.json 解析失败，未改动: ${error.message || error}` }; }
+  if (meta.locked) return { ok: false, message: '该快照已锁定，请先解锁再同步标注' };
+
+  const ANN = samplePool.ANNOTATION_FIELDS;
+  const annotations = samplePool.loadAnnotations();
+  const lines = fs.readFileSync(snapPath, 'utf8').split(/\r?\n/).filter((l) => l.trim().length);
+
+  const labelChanges = [];
+  const gtMap = {};
+  const newObjs = lines.map((l) => {
+    let o;
+    try { o = JSON.parse(l); } catch (_) { return null; }
+    const ann = annotations.get(o.sample_id);
+    if (!ann) { if (o.label === 'G' || o.label === 'N') gtMap[o.sample_id] = { label: o.label, human_result: o.human_result || '' }; return o; }
+    const before = o.label || '';
+    // 用当前标注覆盖冻结的标注字段（含 human_result / label 及其它 ANN 字段）。
+    for (const k of ANN) { if (ann[k] !== undefined) o[k] = ann[k]; }
+    o.annotation_operator = ann.operator || o.annotation_operator || '';
+    o.annotation_updated_at = ann.updated_at || o.annotation_updated_at || '';
+    const after = o.label || '';
+    if (before !== after) labelChanges.push({ sample_id: o.sample_id, from: before, to: after });
+    if (o.label === 'G' || o.label === 'N') gtMap[o.sample_id] = { label: o.label, human_result: o.human_result || '' };
+    return o;
+  }).filter(Boolean);
+
+  if (!labelChanges.length) {
+    return { ok: true, bm_id: id, changed: 0, label_changes: [], gtMap, message: '快照标注已与标注页一致，无需更新' };
+  }
+
+  const ts = nowIso().replace(/[:.]/g, '').replace('T', '_').slice(0, 15);
+  const bakDir = path.join(REGISTRY_DIR, '_backups', `resync_${id}_${ts}`, 'bm');
+  fs.mkdirSync(bakDir, { recursive: true });
+  fs.copyFileSync(snapPath, path.join(bakDir, 'snapshot.jsonl'));
+  fs.copyFileSync(metaPath, path.join(bakDir, 'meta.json'));
+
+  let g = 0; let n = 0; let unlabeled = 0; const perCat = {};
+  for (const o of newObjs) {
+    if (o.label === 'G') g += 1; else if (o.label === 'N') n += 1; else unlabeled += 1;
+    perCat[o.object_category] = (perCat[o.object_category] || 0) + 1;
+  }
+  fs.writeFileSync(snapPath, newObjs.map((o) => JSON.stringify(o)).join('\n') + '\n', 'utf8');
+  meta.label_counts = { G: g, N: n };
+  meta.unlabeled_count = unlabeled;
+  meta.per_category_counts = perCat;
+  meta.updated_at = nowIso();
+  meta.last_resync = { at: nowIso(), changed: labelChanges.length };
+  fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
+
+  return { ok: true, bm_id: id, changed: labelChanges.length, label_changes: labelChanges, gtMap, backup: path.dirname(bakDir) };
+}
+
 // 删除某个快照目录。已锁定的拒绝删除（需先解锁）。整目录移除，不影响其它快照与原图。
 function deleteSnapshot(bmId) {
   const id = sanitizeBmId(bmId);
@@ -383,5 +448,6 @@ module.exports = {
   setSnapshotLock,
   deleteSnapshot,
   addSamplesToSnapshot,
+  resyncSnapshotFromAnnotations,
   BM_DIR,
 };

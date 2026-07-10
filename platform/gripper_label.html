@@ -69,6 +69,8 @@
     .msg { font-size: 12px; }
     .msg.ok { color: var(--green-dark); }
     .msg.err { color: var(--red); }
+    /* 单张跑模型失败：醒目红色提示条，避免被当成普通小字忽略 */
+    .msg.err.vlm-fail { display: block; font-size: 13px; line-height: 1.4; color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; border-left: 3px solid var(--red); border-radius: 6px; padding: 8px 10px; margin-top: 6px; word-break: break-all; }
     .meta { font-size: 11px; color: var(--muted); font-family: ui-monospace, Menlo, Consolas, monospace; word-break: break-all; margin-top: 6px; }
     .empty { color: var(--muted); padding: 30px 14px; text-align: center; }
     .toolbar2 { margin-top: 10px; }
@@ -93,9 +95,6 @@
     .bb-group select { width: auto; padding: 3px 6px; }
     .bb-count { font-size: 12px; color: var(--muted); white-space: nowrap; }
     .batchbar button.ghost { padding: 3px 9px; font-size: 12px; }
-    .ep-compact input[type=text] { width: 72px; padding: 3px 6px; font-size: 12px; }
-    .ep-compact input[data-ep-model] { width: 88px; }
-    .ep-compact label { font-size: 12px; color: var(--muted); white-space: nowrap; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; padding: 10px; max-height: 78vh; overflow-y: auto; user-select: none; align-items: start; }
     .thumb { position: relative; border: 2px solid transparent; border-radius: 8px; overflow: hidden; cursor: pointer; background: #fff; display: flex; flex-direction: column; }
     .thumb-img { position: relative; aspect-ratio: 1 / 1; overflow: hidden; background: #0f172a; }
@@ -343,10 +342,20 @@
     async function loadCategories() {
       const r = await fetch('/api/pool/status');
       const data = await r.json();
-      const cats = Object.keys(data.samples_per_category || {});
+      const counts = data.samples_per_category || {};
+      const cats = Object.keys(counts).filter((c) => counts[c] > 0);
       const sel = $('fCategory');
+      const prev = state.category;
       sel.innerHTML = '<option value="">全部类别</option>' +
-        cats.map((c) => `<option value="${c}">${c} (${data.samples_per_category[c]})</option>`).join('');
+        cats.map((c) => `<option value="${c}">${c} (${counts[c]})</option>`).join('');
+      // 当前选中类别若已无可见样本（如本地图已删），自动退回「全部类别」。
+      if (prev && !cats.includes(prev)) {
+        state.category = '';
+        state.offset = 0;
+        state.selected.clear();
+      } else if (prev) {
+        sel.value = prev;
+      }
     }
 
     async function loadDictionary() {
@@ -371,6 +380,8 @@
     }
 
     async function loadSamples() {
+      // 每次拉列表前刷新类别计数（只统计本地 cam1 仍存在的样本），删图后类别会自动消失。
+      await loadCategories();
       const params = new URLSearchParams({
         category: state.category, ann_status: state.status,
         limit: String(state.limit), offset: String(state.offset),
@@ -822,7 +833,12 @@
         renderGrid();
         setMsg('vlmMsg', `模型预测：${predText}（原始：${d.raw || d.pred}）${mlabel ? ' · ' + mlabel : ''}${cmp}`, bad);
       } catch (e) {
-        setMsg('vlmMsg', e.message || String(e), true);
+        const el = $('vlmMsg');
+        if (el) {
+          el.textContent = '跑模型失败：' + (e.message || String(e));
+          el.className = 'msg err vlm-fail';
+          el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
       } finally {
         btn.disabled = false;
         btn.textContent = old;
