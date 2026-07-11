@@ -91,7 +91,12 @@
     .rt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
     .rt-cam { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #0f172a; }
     .rt-cam-title { display: flex; justify-content: space-between; padding: 6px 10px; font-size: 12px; color: #cbd5e1; background: #1e293b; }
-    .rt-cam img { width: 100%; display: block; aspect-ratio: 16 / 9; object-fit: contain; background: #111827; }
+    .rt-cam img, .rt-cam video { width: 100%; display: block; aspect-ratio: 16 / 9; object-fit: contain; background: #111827; }
+    .rt-cam video { display: none; }
+    .rt-cam.webrtc-on img { display: none; }
+    .rt-cam.webrtc-on video { display: block; }
+    .rt-source { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .rt-source strong { color: var(--text); }
     @media (max-width: 720px) { .rt-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -113,7 +118,8 @@
       <div class="rt-head">
         <div>
           <h2>实时采集</h2>
-          <p class="hint" style="margin:2px 0 0;">从实时相机抓取 cam0/cam1 一组画面，选好类别后“保存到样本池”即按共享组身份登记入池（cam1 参与评估，cam0 为参考）。来源由服务端 REALTIME_BASE_URLS 配置。</p>
+          <p class="hint" style="margin:2px 0 0;">兼容旧 9002 JPEG 抓图与新 9003 WebRTC 画面；保存时按共享组身份登记入池（cam1 评估，cam0 参考）。</p>
+          <p class="rt-source" id="rtSourceHint">来源检测中…</p>
         </div>
         <div class="rt-ctrls">
           <label class="rt-cat" title="采集时选好类别，保存时同步登记进样本池并自动归类">类别
@@ -125,13 +131,15 @@
         </div>
       </div>
       <div class="rt-grid">
-        <div class="rt-cam">
+        <div class="rt-cam" id="rtCam0Box">
           <div class="rt-cam-title"><span>cam0 参考画面</span><span id="rtCam0Time">-</span></div>
           <img id="rtImgCam0" alt="cam0 实时画面">
+          <video id="rtVideoCam0" muted playsinline autoplay></video>
         </div>
-        <div class="rt-cam">
+        <div class="rt-cam" id="rtCam1Box">
           <div class="rt-cam-title"><span>cam1 评估画面</span><span id="rtCam1Time">-</span></div>
           <img id="rtImgCam1" alt="cam1 实时画面">
+          <video id="rtVideoCam1" muted playsinline autoplay></video>
         </div>
       </div>
     </section>
@@ -233,14 +241,18 @@
       return String(s).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
     }
 
-    async function loadStatus() {
+    async function loadStatus(opts = {}) {
       if (busy) return;
-      setBusy(true, '扫描中…');
+      const syncPaths = opts.sync !== false;
+      setBusy(true, syncPaths ? '扫描中…' : '刷新中…');
       try {
-        const res = await fetch('/api/pool/status');
+        const res = await fetch('/api/pool/status' + (syncPaths ? '' : '?sync=0'));
         const data = await res.json();
         if (!data.ok) throw new Error(data.message || '加载失败');
         statusData = data;
+        if (data.path_sync && (data.path_sync.updated_count || data.path_sync.removed_count)) {
+          appendLog(`[路径同步] 更新 ${data.path_sync.updated_count} 条路径，移除 ${data.path_sync.removed_count} 条已删图登记`);
+        }
         if (data.testcollection_dir) $('tcDir').textContent = data.testcollection_dir;
         renderSummary(data);
         renderRows(data);
@@ -398,11 +410,36 @@
     $('createCatBtn').addEventListener('click', onCreateCategory);
     $('newCatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') onCreateCategory(); });
 
-    // ===== 实时采集（复用 /api/realtime-proxy 预览 + /api/realtime/save 双写入池）=====
+    // ===== 实时采集：9002 JPEG 轮询 + 9003 WebRTC 截帧，均可保存入池 =====
     let rtRefreshSeq = 0;
+    let rtJpegOk = false;
+    let rtWebrtcReady = { cam0: false, cam1: false };
+    const rtWebrtcSessions = new Map();
+    let rtWebrtcStarting = false;
+    let rtSourceMode = 'detecting';
+
     function rtPlaceholder(camera, message) {
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360"><rect width="640" height="360" fill="#111827"/><text x="50%" y="48%" text-anchor="middle" fill="#dbe4f3" font-size="22" font-family="Arial" font-weight="700">cam${camera} 实时画面未加载</text><text x="50%" y="58%" text-anchor="middle" fill="#94a3b8" font-size="15" font-family="Arial">${message}</text></svg>`;
       return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    }
+    function rtUpdateSourceHint() {
+      const el = $('rtSourceHint');
+      if (!el) return;
+      const jpeg = rtJpegOk ? '9002 JPEG 可用' : '9002 JPEG 不可用';
+      const wr = (rtWebrtcReady.cam0 || rtWebrtcReady.cam1)
+        ? `9003 WebRTC ${rtWebrtcReady.cam0 && rtWebrtcReady.cam1 ? '双路就绪' : '部分就绪'}`
+        : '9003 WebRTC 未就绪';
+      el.innerHTML = `当前：<strong>${rtSourceMode}</strong>　|　${jpeg}　|　${wr}`;
+    }
+    function rtSetWebrtcMode(on) {
+      ['0', '1'].forEach((cam) => {
+        const box = $(`rtCam${cam}Box`);
+        if (box) box.classList.toggle('webrtc-on', !!on);
+      });
+      if (on) rtSourceMode = 'WebRTC(9003)';
+      else if (rtJpegOk) rtSourceMode = 'JPEG(9002)';
+      else rtSourceMode = '无可用源';
+      rtUpdateSourceHint();
     }
     function rtRefreshCam(camera, seq) {
       return new Promise((resolve) => {
@@ -419,16 +456,149 @@
         img.onerror = () => {
           if (seq !== rtRefreshSeq) return resolve(false);
           const target = $(`rtImgCam${camera}`);
-          if (target && target.dataset.has !== '1') target.src = rtPlaceholder(camera, '实时服务不可达');
+          if (target && target.dataset.has !== '1' && !rtWebrtcReady[`cam${camera}`]) {
+            target.src = rtPlaceholder(camera, '实时服务不可达');
+          }
           resolve(false);
         };
         img.src = url;
       });
     }
-    function rtRefresh() {
+    async function rtRefresh() {
+      // WebRTC 双路已出图时，不再轮询失效的 9002 JPEG（每次会串行超时，把保存请求拖慢好几秒）。
+      if (rtWebrtcReady.cam0 && rtWebrtcReady.cam1) {
+        rtJpegOk = false;
+        rtUpdateSourceHint();
+        return;
+      }
       const seq = ++rtRefreshSeq;
-      Promise.all([rtRefreshCam(0, seq), rtRefreshCam(1, seq)]);
+      const results = await Promise.all([rtRefreshCam(0, seq), rtRefreshCam(1, seq)]);
+      rtJpegOk = results.some(Boolean);
+      if (rtJpegOk && !(rtWebrtcReady.cam0 || rtWebrtcReady.cam1)) rtSetWebrtcMode(false);
+      else rtUpdateSourceHint();
+      if (!rtJpegOk) rtEnsureWebrtc();
     }
+
+    function rtCaptureVideoJpeg(video) {
+      if (!video || video.readyState < 2 || !video.videoWidth) return null;
+      const canvas = document.createElement('canvas');
+      // 保持原始分辨率；略降质量加快编码与上传（评估仍够用）。
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+      return dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+    }
+
+    function rtStopWebrtcStream(streamId) {
+      const session = rtWebrtcSessions.get(streamId);
+      if (!session) return;
+      session.closing = true;
+      try { if (session.ws) session.ws.send(JSON.stringify({ type: 'unwatch', stream_id: streamId })); } catch (e) {}
+      try { if (session.ws) session.ws.close(); } catch (e) {}
+      try { if (session.pc) session.pc.close(); } catch (e) {}
+      if (session.video) {
+        session.video.srcObject = null;
+        const cam = session.cam;
+        rtWebrtcReady[`cam${cam}`] = false;
+      }
+      rtWebrtcSessions.delete(streamId);
+    }
+    function rtStopAllWebrtc() {
+      Array.from(rtWebrtcSessions.keys()).forEach(rtStopWebrtcStream);
+      rtSetWebrtcMode(false);
+    }
+    function rtStartWebrtcStream(streamId, cam, video) {
+      if (!streamId || rtWebrtcSessions.has(streamId)) return;
+      const session = {
+        streamId,
+        cam,
+        video,
+        pc: new RTCPeerConnection({ iceServers: [] }),
+        ws: null,
+        closing: false,
+        remoteDescriptionSet: false,
+        pendingRemoteCandidates: [],
+      };
+      rtWebrtcSessions.set(streamId, session);
+      session.pc.ontrack = (event) => {
+        if (rtWebrtcSessions.get(streamId) !== session) return;
+        video.srcObject = event.streams[0] || new MediaStream([event.track]);
+        video.play().catch(() => {});
+        rtWebrtcReady[`cam${cam}`] = true;
+        rtSetWebrtcMode(true);
+        const stamp = $(`rtCam${cam}Time`);
+        if (stamp) stamp.textContent = 'WebRTC ' + new Date().toLocaleTimeString('zh-CN');
+      };
+      session.pc.onicecandidate = (event) => {
+        if (!event.candidate || !session.ws || session.ws.readyState !== WebSocket.OPEN) return;
+        const candidate = event.candidate.toJSON ? event.candidate.toJSON() : {
+          candidate: event.candidate.candidate,
+          sdpMid: event.candidate.sdpMid,
+          sdpMLineIndex: event.candidate.sdpMLineIndex,
+        };
+        session.ws.send(JSON.stringify({ type: 'ice', stream_id: streamId, candidate }));
+      };
+      const wsProto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+      const ws = new WebSocket(`${wsProto}${location.host}/api/realtime-webrtc/ws`);
+      session.ws = ws;
+      ws.onopen = () => ws.send(JSON.stringify({ type: 'watch', stream_id: streamId }));
+      ws.onerror = () => { /* 由 jpeg 兜底 */ };
+      ws.onclose = () => {
+        if (rtWebrtcSessions.get(streamId) === session && !session.closing) {
+          rtStopWebrtcStream(streamId);
+          rtUpdateSourceHint();
+        }
+      };
+      ws.onmessage = async (event) => {
+        let message;
+        try { message = JSON.parse(event.data); } catch (e) { return; }
+        if (message.stream_id && message.stream_id !== streamId) return;
+        if (message.type === 'sdp') {
+          const description = message.description;
+          if (!description || description.type !== 'offer') return;
+          try {
+            await session.pc.setRemoteDescription(description);
+            session.remoteDescriptionSet = true;
+            for (const candidate of session.pendingRemoteCandidates.splice(0)) {
+              await session.pc.addIceCandidate(candidate);
+            }
+            const answer = await session.pc.createAnswer();
+            await session.pc.setLocalDescription(answer);
+            ws.send(JSON.stringify({
+              type: 'sdp',
+              stream_id: streamId,
+              description: { type: session.pc.localDescription.type, sdp: session.pc.localDescription.sdp },
+            }));
+          } catch (e) { /* ignore */ }
+          return;
+        }
+        if (message.type === 'ice') {
+          try {
+            if (!session.remoteDescriptionSet) session.pendingRemoteCandidates.push(message.candidate);
+            else await session.pc.addIceCandidate(message.candidate);
+          } catch (e) { /* ignore */ }
+        }
+      };
+    }
+    async function rtEnsureWebrtc() {
+      if (rtWebrtcStarting || (rtWebrtcReady.cam0 && rtWebrtcReady.cam1)) return;
+      rtWebrtcStarting = true;
+      try {
+        const cfgRes = await fetch('/api/realtime-webrtc/config');
+        const cfg = await cfgRes.json();
+        if (!cfgRes.ok || !cfg.ok) throw new Error(cfg.message || '无 WebRTC 配置');
+        await fetch('/api/realtime-webrtc/view?action=start&group=channel_0').catch(() => {});
+        const map = cfg.stream_map || { cam1: 'live_h264_left', cam0: 'live_h264_right' };
+        rtStartWebrtcStream(map.cam0, 0, $('rtVideoCam0'));
+        rtStartWebrtcStream(map.cam1, 1, $('rtVideoCam1'));
+      } catch (e) {
+        rtUpdateSourceHint();
+      } finally {
+        rtWebrtcStarting = false;
+      }
+    }
+
     async function rtLoadCategories(selectValue) {
       const sel = $('rtCategory');
       try {
@@ -463,19 +633,35 @@
       btn.textContent = '保存中…';
       try {
         const category = $('rtCategory').value;
+        const frames = {};
+        const c0 = rtCaptureVideoJpeg($('rtVideoCam0'));
+        const c1 = rtCaptureVideoJpeg($('rtVideoCam1'));
+        if (c0) frames.cam0 = c0;
+        if (c1) frames.cam1 = c1;
+        const payload = { object_category: category };
+        if (frames.cam0 || frames.cam1) payload.frames = frames;
         const r = await fetch('/api/realtime/save', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ object_category: category }),
+          body: JSON.stringify(payload),
         });
         const d = await r.json();
         if (!r.ok || !d.ok) throw new Error(d.message || '保存失败');
         const sync = d.pool_sync;
+        const mode = d.capture_mode === 'webrtc' ? 'WebRTC截帧' : 'JPEG抓图';
         const note = sync && sync.status === 'added' ? '已登记入样本池'
           : sync && sync.status === 'already_in_pool' ? '样本池已存在'
           : sync && sync.status === 'content_duplicate' ? '样本池判为重复未登记'
           : sync && sync.ok === false ? `入池跳过：${sync.message || ''}` : '已保存';
-        showMsg(`实时画面已保存（${note}）`, sync && sync.ok === false ? 'info' : 'ok');
-        await loadStatus();
+        showMsg(`实时画面已保存（${mode}，${note}）`, sync && sync.ok === false ? 'info' : 'ok');
+        // 实时保存后不跑全盘扫描（会卡几秒）；仅本地更新计数。
+        if (statusData && sync && sync.status === 'added') {
+          const cat = category || sync.object_category || '未分类';
+          statusData.total_samples = (statusData.total_samples || 0) + 1;
+          if (!statusData.samples_per_category) statusData.samples_per_category = {};
+          statusData.samples_per_category[cat] = (statusData.samples_per_category[cat] || 0) + 1;
+          renderSummary(statusData);
+          renderRows(statusData);
+        }
       } catch (e) {
         showMsg('保存失败：' + (e.message || String(e)), 'err');
       } finally {
@@ -483,7 +669,7 @@
         btn.textContent = oldText;
       }
     }
-    $('rtRefreshBtn').addEventListener('click', rtRefresh);
+    $('rtRefreshBtn').addEventListener('click', () => { rtRefresh(); rtEnsureWebrtc(); });
     $('rtSaveBtn').addEventListener('click', rtSave);
     // 快捷键：空格键保存到样本池。焦点在输入框/下拉框/按钮等可交互元素上时不拦截，避免误触和影响正常输入。
     document.addEventListener('keydown', (e) => {
@@ -496,7 +682,9 @@
     });
     $('rtAddCatBtn').addEventListener('click', rtAddCategory);
     rtLoadCategories();
+    rtUpdateSourceHint();
     rtRefresh();
+    rtEnsureWebrtc();
     setInterval(rtRefresh, 2000);
 
     loadStatus();

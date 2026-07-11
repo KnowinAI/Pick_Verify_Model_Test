@@ -6,6 +6,7 @@
 
 const fs = require('fs');
 const http = require('http');
+const net = require('net');
 const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
@@ -46,6 +47,8 @@ const PORT = Number(process.env.PORT || 5034);
 const APP_BASE_URL = process.env.APP_BASE_URL || `http://127.0.0.1:${PORT}`;
 const SOURCE_BASE_URL = process.env.SOURCE_BASE_URL || 'http://101.132.143.105:5022';
 const DEFAULT_REALTIME_BASE_URLS = [
+  'http://192.168.79.160:9003',
+  'http://192.168.79.160:9002',
   'http://192.168.127.10:9002',
   'http://127.0.0.1:5033',
   'http://192.168.78.168:5033',
@@ -122,6 +125,40 @@ function getRealtimeBaseUrls() {
 const REALTIME_BASE_URLS = getRealtimeBaseUrls();
 const realtimeBaseFailures = new Map();
 let realtimeLastGoodBaseUrl = '';
+let webrtcGatewayCache = null;
+let webrtcGatewayCacheAt = 0;
+const WEBRTC_GATEWAY_CACHE_MS = 30000;
+
+// 实时源类型：9003 为 WebRTC 可视化；9002/5033 为 JPEG 静帧。
+function realtimeSourceKind(baseUrl) {
+  try {
+    const port = getUrlPort(new URL(baseUrl));
+    if (port === '9003') return 'webrtc';
+    if (port === '9002' || port === '5033') return 'jpeg';
+  } catch {
+    // ignore
+  }
+  return 'auto';
+}
+
+function listRealtimeSources() {
+  return REALTIME_BASE_URLS.map((baseUrl) => ({
+    base_url: baseUrl,
+    kind: realtimeSourceKind(baseUrl),
+  }));
+}
+
+function getWebrtcBaseUrl() {
+  const sources = listRealtimeSources();
+  const preferred = sources.find((s) => s.kind === 'webrtc');
+  return preferred ? preferred.base_url : '';
+}
+
+function getJpegRealtimeBaseUrls() {
+  return listRealtimeSources()
+    .filter((s) => s.kind === 'jpeg' || s.kind === 'auto')
+    .map((s) => s.base_url);
+}
 
 // 给视觉语言模型的提示词。要求模型只输出 G 或 N。
 const PROMPT = `判断机器人夹爪是否夹住了物体。只能输出下面一个字母，不要输出解释：
@@ -332,6 +369,19 @@ function getImageContentType(filename) {
 
 function makeShortId() {
   return Math.random().toString(36).slice(2, 8);
+}
+
+// 本地时间戳 YYYYMMDDHHmmss（用于文件名/组对身份）。不要用 toISOString（那是 UTC，中国会差 8 小时）。
+function localTimestamp14(date = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate()),
+    pad(date.getHours()),
+    pad(date.getMinutes()),
+    pad(date.getSeconds()),
+  ].join('');
 }
 
 function getUploadStoredFilename(body, fallbackFilename) {
@@ -2307,7 +2357,7 @@ function isCurrentServerBase(baseUrl) {
   }
 }
 
-// 根据实时服务类型生成可能的抓图接口地址。5033 和 9002 的路径不一样。
+// 根据实时服务类型生成可能的抓图接口地址。5033 和 9002 的路径不一样；9003 为 WebRTC，无 JPEG。
 function makeRealtimeFrameUrls(baseUrl, cam) {
   if (!baseUrl || isCurrentServerBase(baseUrl)) return [];
   let parsed;
@@ -2316,6 +2366,8 @@ function makeRealtimeFrameUrls(baseUrl, cam) {
   } catch {
     return [];
   }
+  const kind = realtimeSourceKind(baseUrl);
+  if (kind === 'webrtc') return [];
   const normalized = `${parsed.origin}${parsed.pathname.replace(/\/+$/, '')}`;
   const camera = encodeURIComponent(cam);
   const tick = Date.now();
@@ -2329,11 +2381,11 @@ function makeRealtimeFrameUrls(baseUrl, cam) {
 }
 
 function getOrderedRealtimeBaseUrls() {
-  const urls = REALTIME_BASE_URLS.filter((baseUrl) => baseUrl && !isCurrentServerBase(baseUrl));
-  if (!realtimeLastGoodBaseUrl || !urls.includes(realtimeLastGoodBaseUrl)) return urls;
+  const jpegUrls = getJpegRealtimeBaseUrls().filter((baseUrl) => baseUrl && !isCurrentServerBase(baseUrl));
+  if (!realtimeLastGoodBaseUrl || !jpegUrls.includes(realtimeLastGoodBaseUrl)) return jpegUrls;
   return [
     realtimeLastGoodBaseUrl,
-    ...urls.filter((baseUrl) => baseUrl !== realtimeLastGoodBaseUrl),
+    ...jpegUrls.filter((baseUrl) => baseUrl !== realtimeLastGoodBaseUrl),
   ];
 }
 
@@ -2374,24 +2426,24 @@ function formatRealtimeFetchError(error) {
 }
 
 // 依次尝试多个实时图像地址，直到成功拿到一张图。
+// 冷却中的地址本轮直接跳过，避免每次请求都把所有失效 9002 再超时一遍（会拖慢保存）。
 async function fetchRealtimeImage(cam) {
-  const deferredBaseUrls = [];
   let lastError = '';
+  let tried = 0;
   for (const baseUrl of getOrderedRealtimeBaseUrls()) {
     if (shouldDeferRealtimeBase(baseUrl)) {
-      deferredBaseUrls.push(baseUrl);
+      const failure = realtimeBaseFailures.get(baseUrl);
+      if (failure && failure.errorMessage) lastError = failure.errorMessage;
       continue;
     }
+    tried += 1;
     const response = await fetchRealtimeImageFromBase(baseUrl, cam);
     if (response.ok) return response.value;
     lastError = response.error || lastError;
   }
-  for (const baseUrl of deferredBaseUrls) {
-    const response = await fetchRealtimeImageFromBase(baseUrl, cam);
-    if (response.ok) return response.value;
-    lastError = response.error || lastError;
-  }
-  throw new Error(`cam${cam} 抓图失败：${lastError || '无可用实时图像接口'}`);
+  throw new Error(
+    `cam${cam} 抓图失败：${lastError || (tried ? '无可用实时图像接口' : 'JPEG 源均在冷却中（可改用 WebRTC 截帧保存）')}`,
+  );
 }
 
 async function fetchRealtimeImageFromBase(baseUrl, cam) {
@@ -2436,23 +2488,122 @@ async function fetchRealtimePage() {
 async function captureRealtimeSnapshot(cam, captureGroupId, captureTimestamp, pairSuffix) {
   const response = await fetchRealtimeImage(cam);
   const contentType = response.headers.get('content-type') || 'image/jpeg';
-  const ext = contentType.includes('png') ? 'png' : 'jpg';
   const buffer = Buffer.from(await response.arrayBuffer());
+  return writeRealtimeSnapshotBuffer(cam, buffer, contentType, captureGroupId, captureTimestamp, pairSuffix, '9002_snapshot');
+}
+
+// 把已拿到的图像字节写入 local_images（供 JPEG 抓图或 WebRTC 前端截帧共用）。
+function writeRealtimeSnapshotBuffer(cam, buffer, contentType, captureGroupId, captureTimestamp, pairSuffix, sourceTag) {
+  const type = contentType || 'image/jpeg';
+  const ext = type.includes('png') ? 'png' : 'jpg';
   ensureLocalImageDir();
-  const timestamp = captureTimestamp || new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
+  const timestamp = captureTimestamp || localTimestamp14();
   const suffix = pairSuffix || makeShortId();
   const filename = `cam${cam}_${timestamp}_${suffix}.${ext}`;
   const filepath = path.join(LOCAL_IMAGE_DIR, filename);
   fs.writeFileSync(filepath, buffer);
   return {
     filename,
-    contentType,
+    contentType: type,
     cam,
     captureGroupId,
     captureTimestamp: timestamp,
     pairSuffix: suffix,
+    sourceTag: sourceTag || 'realtime_snapshot',
     image_url: `/api/local-images/${encodeURIComponent(filename)}`,
   };
+}
+
+function decodeClientImageBase64(value) {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  const pure = text.includes(',') ? text.split(',').pop() : text;
+  const buffer = Buffer.from(pure, 'base64');
+  return buffer.length ? buffer : null;
+}
+
+// 拉取 9003 /api/config，并缓存 gateway 信令地址供 WebSocket 代理使用。
+async function fetchWebrtcConfig(force = false) {
+  const base = getWebrtcBaseUrl();
+  if (!base) throw new Error('未配置 WebRTC 实时源（REALTIME_BASE_URLS 中无 9003）');
+  if (!force && webrtcGatewayCache && Date.now() - webrtcGatewayCacheAt < WEBRTC_GATEWAY_CACHE_MS) {
+    return webrtcGatewayCache;
+  }
+  const response = await fetch(`${base.replace(/\/+$/, '')}/api/config`, {
+    signal: AbortSignal.timeout(Math.max(REALTIME_FETCH_TIMEOUT_MS, 4000)),
+  });
+  if (!response.ok) throw new Error(`读取 WebRTC 配置失败：HTTP ${response.status}`);
+  const config = await response.json();
+  const parsed = new URL(base);
+  const signalPort = Number((config.gateway && config.gateway.signal_port) || 8080);
+  const payload = {
+    base_url: base,
+    config,
+    gateway: {
+      host: parsed.hostname,
+      port: signalPort,
+      ws_path: '/ws',
+    },
+    // 与历史标注约定一致：left=cam1 评估，right=cam0 参考
+    stream_map: {
+      cam1: 'live_h264_left',
+      cam0: 'live_h264_right',
+    },
+  };
+  webrtcGatewayCache = payload;
+  webrtcGatewayCacheAt = Date.now();
+  return payload;
+}
+
+// 把浏览器 WebRTC 信令 WebSocket 代理到板子 gateway（媒体 UDP 仍直连板子）。
+function proxyWebrtcSignalingUpgrade(req, socket, head) {
+  Promise.resolve()
+    .then(() => fetchWebrtcConfig())
+    .then((info) => {
+      const gateway = info.gateway;
+      const upstream = net.connect(gateway.port, gateway.host);
+      upstream.on('connect', () => {
+        const headerLines = [
+          `GET ${gateway.ws_path} HTTP/1.1`,
+          `Host: ${gateway.host}:${gateway.port}`,
+        ];
+        for (const [key, value] of Object.entries(req.headers)) {
+          const lower = key.toLowerCase();
+          if (lower === 'host' || lower === 'connection' || lower === 'upgrade' || lower === 'sec-websocket-key'
+            || lower === 'sec-websocket-version' || lower === 'sec-websocket-extensions'
+            || lower === 'sec-websocket-protocol' || lower === 'origin') {
+            continue;
+          }
+          headerLines.push(`${key}: ${value}`);
+        }
+        // 保留浏览器 WebSocket 握手关键头
+        if (req.headers['sec-websocket-key']) headerLines.push(`Sec-WebSocket-Key: ${req.headers['sec-websocket-key']}`);
+        if (req.headers['sec-websocket-version']) headerLines.push(`Sec-WebSocket-Version: ${req.headers['sec-websocket-version']}`);
+        if (req.headers['sec-websocket-protocol']) headerLines.push(`Sec-WebSocket-Protocol: ${req.headers['sec-websocket-protocol']}`);
+        if (req.headers['sec-websocket-extensions']) headerLines.push(`Sec-WebSocket-Extensions: ${req.headers['sec-websocket-extensions']}`);
+        if (req.headers.origin) headerLines.push(`Origin: ${req.headers.origin}`);
+        headerLines.push('Connection: Upgrade');
+        headerLines.push('Upgrade: websocket');
+        headerLines.push('');
+        headerLines.push('');
+        upstream.write(headerLines.join('\r\n'));
+        if (head && head.length) upstream.write(head);
+        upstream.pipe(socket);
+        socket.pipe(upstream);
+      });
+      const fail = () => {
+        try { socket.destroy(); } catch (_) {}
+        try { upstream.destroy(); } catch (_) {}
+      };
+      upstream.on('error', fail);
+      socket.on('error', fail);
+    })
+    .catch(() => {
+      try {
+        socket.write('HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n');
+      } catch (_) {}
+      try { socket.destroy(); } catch (_) {}
+    });
 }
 
 // 把实时快照写入本地 records。cam1 标为评估图，cam0 标为参考图。
@@ -2467,7 +2618,7 @@ function upsertLocalRealtimeRecord(snapshot) {
     cameraId,
     cameraLabel,
   });
-  localSource.source_metadata.source = '9002_snapshot';
+  localSource.source_metadata.source = snapshot.sourceTag || '9002_snapshot';
   localSource.source_metadata.capture_group_id = snapshot.captureGroupId;
   localSource.source_metadata.capture_timestamp = snapshot.captureTimestamp;
   localSource.source_metadata.pair_suffix = snapshot.pairSuffix;
@@ -2602,7 +2753,8 @@ async function handleApi(req, res, url) {
   // 样本池状态：样本池总量 + 各类别待入池数量。
   if (req.method === 'GET' && url.pathname === '/api/pool/status') {
     try {
-      sendJson(res, 200, samplePool.getPoolStatus());
+      const syncPaths = url.searchParams.get('sync') !== '0';
+      sendJson(res, 200, samplePool.getPoolStatus({ syncPaths }));
     } catch (error) {
       sendJson(res, 500, { ok: false, message: error.message || String(error) });
     }
@@ -3018,6 +3170,48 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  // 列出已配置的实时源（JPEG / WebRTC），供样本池页选择接入方式。
+  if (req.method === 'GET' && url.pathname === '/api/realtime/sources') {
+    sendJson(res, 200, {
+      ok: true,
+      sources: listRealtimeSources(),
+      webrtc_base_url: getWebrtcBaseUrl() || null,
+      jpeg_base_urls: getJpegRealtimeBaseUrls(),
+    });
+    return;
+  }
+
+  // 代理 9003 可视化配置，避免浏览器跨域。
+  if (req.method === 'GET' && url.pathname === '/api/realtime-webrtc/config') {
+    try {
+      const cfg = await fetchWebrtcConfig(true);
+      sendJson(res, 200, { ok: true, ...cfg });
+    } catch (error) {
+      sendJson(res, 502, { ok: false, message: error.message || String(error) });
+    }
+    return;
+  }
+
+  // 代理 9003 view start/stop。
+  if (req.method === 'GET' && url.pathname === '/api/realtime-webrtc/view') {
+    try {
+      const base = getWebrtcBaseUrl();
+      if (!base) {
+        sendJson(res, 404, { ok: false, message: '未配置 WebRTC 实时源（9003）' });
+        return;
+      }
+      const action = String(url.searchParams.get('action') || 'start');
+      const group = String(url.searchParams.get('group') || 'channel_0');
+      const target = `${base.replace(/\/+$/, '')}/api/view/${encodeURIComponent(action)}?group=${encodeURIComponent(group)}`;
+      const response = await fetchWithRealtimeTimeout(target);
+      const text = await response.text();
+      sendText(res, response.ok ? 200 : response.status, text, 'text/plain; charset=utf-8');
+    } catch (error) {
+      sendJson(res, 502, { ok: false, message: error.message || String(error) });
+    }
+    return;
+  }
+
   // 代理实时画面帧，前端可以通过本服务拿相机图片。
   if (req.method === 'GET' && url.pathname === '/api/realtime-proxy/frame') {
     try {
@@ -3241,19 +3435,36 @@ async function handleApi(req, res, url) {
   }
 
   // 保存一组实时相机快照；VLM 由前端显式按钮手动触发。
+  // 支持两种来源：1) 服务端从 JPEG 源抓图；2) 前端 WebRTC 截帧后以 base64 上传。
   if (req.method === 'POST' && url.pathname === '/api/realtime/save') {
     try {
       const body = JSON.parse((await readBody(req)) || '{}');
       const objectCategory = String(
         body.object_category || (body.source_metadata && body.source_metadata.object_category) || '',
       ).trim();
+      const clientFrames = body.frames && typeof body.frames === 'object' ? body.frames : {};
       const rawShots = [];
-      const captureTimestamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
+      const captureTimestamp = localTimestamp14();
       const pairSuffix = makeShortId();
       const captureGroupId = `capture_group_${captureTimestamp}_${pairSuffix}`;
       for (const cam of [0, 1]) {
         try {
-          const shot = await captureRealtimeSnapshot(cam, captureGroupId, captureTimestamp, pairSuffix);
+          const clientB64 = clientFrames[`cam${cam}`] || body[`cam${cam}_image_base64`];
+          const clientBuf = decodeClientImageBase64(clientB64);
+          let shot;
+          if (clientBuf) {
+            shot = writeRealtimeSnapshotBuffer(
+              cam,
+              clientBuf,
+              'image/jpeg',
+              captureGroupId,
+              captureTimestamp,
+              pairSuffix,
+              '9003_webrtc_capture',
+            );
+          } else {
+            shot = await captureRealtimeSnapshot(cam, captureGroupId, captureTimestamp, pairSuffix);
+          }
           rawShots.push(shot);
           upsertLocalRealtimeRecord(shot);
         } catch {
@@ -3261,7 +3472,7 @@ async function handleApi(req, res, url) {
         }
       }
       if (!rawShots.length) {
-        sendJson(res, 502, { ok: false, message: '抓取实时画面失败，请检查实时服务或代理地址' });
+        sendJson(res, 502, { ok: false, message: '抓取实时画面失败，请检查 9002 JPEG 源或 9003 WebRTC 画面是否已出图' });
         return;
       }
       const snapshots = rawShots.map((shot) => readData().records[`local_${shot.filename.replace(/\.[^.]+$/, '')}`])
@@ -3306,6 +3517,7 @@ async function handleApi(req, res, url) {
         message: `已保存 ${snapshots.length} 张实时图片为一组，cam1 参与统计，cam0 仅保存为参考；模型需要手动调用`,
         local_snapshots: snapshots,
         pool_sync: poolSync,
+        capture_mode: rawShots.some((s) => s.sourceTag === '9003_webrtc_capture') ? 'webrtc' : 'jpeg',
       });
     } catch (error) {
       sendJson(res, 502, { ok: false, message: error.message || String(error) });
@@ -3737,8 +3949,22 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+server.on('upgrade', (req, socket, head) => {
+  try {
+    const url = new URL(req.url, `http://${req.headers.host || '127.0.0.1'}`);
+    if (url.pathname === '/api/realtime-webrtc/ws') {
+      proxyWebrtcSignalingUpgrade(req, socket, head);
+      return;
+    }
+  } catch (_) {
+    // fallthrough
+  }
+  socket.destroy();
+});
+
 // 启动服务。默认监听 0.0.0.0:5034。
 server.listen(PORT, HOST, () => {
   console.log(`夹爪评估平台已启动：http://${HOST}:${PORT}`);
   console.log(`Share URL: ${APP_BASE_URL}/`);
+  console.log(`Realtime sources: ${REALTIME_BASE_URLS.join(', ') || '(none)'}`);
 });

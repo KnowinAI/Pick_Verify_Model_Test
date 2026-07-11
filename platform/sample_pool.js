@@ -283,6 +283,136 @@ function listCategories() {
     .sort();
 }
 
+// 判断 manifest 条目指向的路径是否仍有效（cam1 必须存在；有 cam0 时 cam0 也必须存在）。
+function entryPathsValid(entry) {
+  if (!entry || !entry.cam1_path) return false;
+  if (!cam1Exists(entry.cam1_path)) return false;
+  if (entry.cam0_path && !fs.existsSync(entry.cam0_path)) return false;
+  return true;
+}
+
+// 扫描某类别目录，按 sample_id 索引当前磁盘上的 cam0/cam1 配对。
+function buildCategoryPairIndex(category) {
+  const index = new Map();
+  if (!isValidCategoryName(category)) return index;
+  const categoryDir = path.join(TESTCOLLECTION_DIR, category);
+  if (!fs.existsSync(categoryDir)) return index;
+  const { pairs } = scanCategoryPairs(category);
+  for (const p of pairs) {
+    index.set(makeSampleId(p.timestamp, p.suffix), p);
+  }
+  return index;
+}
+
+function applyPairToEntry(entry, pair) {
+  const next = { ...entry };
+  next.cam0_path = pair.cam0.path;
+  next.cam1_path = pair.cam1.path;
+  next.source_subdir = relSubdir(pair.cam0.dir);
+  next.cam0_sha1 = sha1File(pair.cam0.path);
+  next.cam1_sha1 = sha1File(pair.cam1.path);
+  next.path_synced_at = nowIso();
+  return next;
+}
+
+// 把 manifest 与 testCollection 当前路径对齐：文件挪位置则更新路径，原图已删则移除登记。
+// 不改原图，只改 pool_manifest.jsonl；标注/VLM 追加日志保持不动。
+function syncPoolManifest(options = {}) {
+  const dryRun = !!options.dryRun;
+  const categoryFilter = options.category ? String(options.category).trim() : '';
+  const { entries } = loadPoolEntries();
+
+  const bySampleId = new Map();
+  for (const e of entries) {
+    if (e.sample_id) bySampleId.set(e.sample_id, e);
+  }
+
+  const categoriesToScan = new Set();
+  if (categoryFilter) {
+    categoriesToScan.add(categoryFilter);
+  } else {
+    for (const c of listCategories()) categoriesToScan.add(c);
+    for (const e of bySampleId.values()) {
+      if (e.object_category) categoriesToScan.add(e.object_category);
+    }
+  }
+
+  const pairIndexByCategory = new Map();
+  for (const cat of categoriesToScan) {
+    pairIndexByCategory.set(cat, buildCategoryPairIndex(cat));
+  }
+
+  const updated = [];
+  const removed = [];
+  const outEntries = [];
+
+  for (const sampleId of Array.from(bySampleId.keys()).sort()) {
+    const entry = bySampleId.get(sampleId);
+    const cat = entry.object_category || '';
+
+    if (categoryFilter && cat !== categoryFilter) {
+      outEntries.push(entry);
+      continue;
+    }
+
+    if (entryPathsValid(entry)) {
+      outEntries.push(entry);
+      continue;
+    }
+
+    const pair = (pairIndexByCategory.get(cat) || new Map()).get(sampleId);
+    if (pair) {
+      const next = applyPairToEntry(entry, pair);
+      outEntries.push(next);
+      updated.push({
+        sample_id: sampleId,
+        object_category: cat,
+        old_cam1_path: entry.cam1_path,
+        new_cam1_path: next.cam1_path,
+        old_cam0_path: entry.cam0_path || '',
+        new_cam0_path: next.cam0_path,
+      });
+    } else {
+      removed.push({
+        sample_id: sampleId,
+        object_category: cat,
+        reason: 'file_missing',
+        last_cam1_path: entry.cam1_path || '',
+      });
+    }
+  }
+
+  const changed = updated.length + removed.length;
+  const report = {
+    synced_at: nowIso(),
+    dry_run: dryRun,
+    category: categoryFilter || null,
+    updated_count: updated.length,
+    removed_count: removed.length,
+    unchanged_count: outEntries.length - updated.length,
+    updated,
+    removed,
+  };
+
+  if (!dryRun && changed > 0) {
+    if (fs.existsSync(POOL_MANIFEST_PATH)) {
+      const bakDir = path.join(REGISTRY_DIR, '_backups', `pool_path_sync_${fileStamp()}`);
+      fs.mkdirSync(bakDir, { recursive: true });
+      fs.copyFileSync(POOL_MANIFEST_PATH, path.join(bakDir, 'pool_manifest.jsonl'));
+      report.backup_dir = bakDir;
+    }
+    const out = outEntries.map((e) => JSON.stringify(e)).join('\n');
+    fs.mkdirSync(SAMPLES_DIR, { recursive: true });
+    fs.writeFileSync(POOL_MANIFEST_PATH, outEntries.length ? out + '\n' : '', 'utf8');
+    writePoolReport(report);
+    const reportDir = path.join(SAMPLES_DIR, 'path_sync_reports');
+    fs.mkdirSync(reportDir, { recursive: true });
+    fs.writeFileSync(path.join(reportDir, `sync_${fileStamp()}.json`), JSON.stringify(report, null, 2), 'utf8');
+  }
+
+  return { ok: true, changed, report };
+}
+
 // 统计样本池中「本地 cam1 仍存在」的可见样本（与 listSamples 列表口径一致）。
 // manifest 里可能仍登记已删图的幽灵条目，此处不计入，避免类别下拉显示 (415) 但列表为 0。
 function visiblePoolStats() {
@@ -299,8 +429,13 @@ function visiblePoolStats() {
   return { total, ghost, perCategory };
 }
 
-// 页面状态：样本池总量 + 各类别待入池数量（只按 sample_id 估算，速度快）。
-function getPoolStatus() {
+// 页面状态：样本池总量 + 各类别待入池数量。
+// options.syncPaths=false 时跳过路径同步（实时保存后刷新用，避免每次全盘扫几秒）。
+function getPoolStatus(options = {}) {
+  const syncPaths = options.syncPaths !== false;
+  const syncResult = syncPaths
+    ? syncPoolManifest()
+    : { ok: true, changed: 0, report: { updated_count: 0, removed_count: 0, skipped: true } };
   const pool = loadPool();
   const visible = visiblePoolStats();
   const categories = listCategories();
@@ -333,6 +468,7 @@ function getPoolStatus() {
     samples_per_category: Object.fromEntries(Array.from(visible.perCategory.entries()).sort()),
     samples_per_batch: Object.fromEntries(Array.from(pool.perBatch.entries()).sort()),
     categories: categoryRows,
+    path_sync: syncResult.report,
     updated_at: nowIso(),
   };
 }
@@ -348,6 +484,7 @@ function ingestCategory(category, options = {}) {
     return { ok: false, message: `类别目录不存在: ${categoryDir}` };
   }
 
+  syncPoolManifest({ category });
   const pool = loadPool();
   const { pairs, anomalies, matched, skipped, scanned } = scanCategoryPairs(category);
 
@@ -1014,6 +1151,7 @@ function createCategory(category) {
 
 module.exports = {
   getPoolStatus,
+  syncPoolManifest,
   ingestCategory,
   ingestAll,
   listCategoryBadGroups,

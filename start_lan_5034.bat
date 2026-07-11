@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0"
 set PORT=5034
-set REALTIME_BASE_URLS=http://192.168.127.10:9002
+set REALTIME_BASE_URLS=http://192.168.79.160:9003,http://192.168.79.160:9002,http://192.168.127.10:9002
 for /f "usebackq delims=" %%i in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\get_lan_ip.ps1"`) do set LAN_IP=%%i
 if "%LAN_IP%"=="" set LAN_IP=127.0.0.1
 set HOST=0.0.0.0

@@ -186,18 +186,30 @@ async function callModel(modelCfg, sampleId) {
   const payload = {
     model: modelCfg.model,
     messages: [{ role: 'user', content: [...blocks, { type: 'text', text: modelCfg.prompt || DEFAULT_PROMPT }] }],
-    max_tokens: 16,
+    max_tokens: Number.isFinite(modelCfg.max_tokens) ? modelCfg.max_tokens : 16,
     temperature: 0,
   };
+  if (modelCfg.chat_template_kwargs && typeof modelCfg.chat_template_kwargs === 'object') {
+    payload.chat_template_kwargs = modelCfg.chat_template_kwargs;
+  }
   const apiKey = modelCfg.api_key_env ? process.env[modelCfg.api_key_env] : '';
+  const fetchOpts = {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}) },
+    body: JSON.stringify(payload),
+  };
+  const timeoutMs = Number(modelCfg.request_timeout_ms);
+  let timeoutId;
+  if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
+    const controller = new AbortController();
+    timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    fetchOpts.signal = controller.signal;
+  }
   let response;
   try {
-    response = await fetch(modelCfg.endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}) },
-      body: JSON.stringify(payload),
-    });
+    response = await fetch(modelCfg.endpoint, fetchOpts);
   } catch (error) {
+    if (timeoutId) clearTimeout(timeoutId);
     // 网络/连接层失败，区别于下方「无法识别输出」的解析失败：多为远端推理服务挂了/重启/过载，不是模型识别问题。
     const code = (error && error.cause && error.cause.code) || (error && error.code) || '';
     const netHints = {
@@ -210,6 +222,8 @@ async function callModel(modelCfg, sampleId) {
     };
     const hint = netHints[code] || (error && error.message) || '网络请求失败';
     return { raw: '', pred: 'Unknown', error: `模型服务连接失败：${hint}${code ? `（${code}）` : ''} —— 非模型识别问题，请检查推理服务 ${modelCfg.endpoint}` };
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
   }
   let result;
   try {

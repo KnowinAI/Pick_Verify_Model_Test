@@ -31,6 +31,21 @@
       "prompt": "",
       "api_key_env": "VLM_API_KEY",
       "send_cam0": false
+    },
+    {
+      "key": "qwen35_4b_4050",
+      "label": "qwen35-4b-4050",
+      "endpoint": "http://101.132.143.105:5071/v1/chat/completions",
+      "model": "qwen35_4b_4050",
+      "prompt_version": "gripper_gn_binary_v1",
+      "prompt": "",
+      "api_key_env": "",
+      "send_cam0": false,
+      "max_tokens": 4,
+      "request_timeout_ms": 300000,
+      "chat_template_kwargs": {
+        "enable_thinking": false
+      }
     }
   ]
 }
